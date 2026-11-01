@@ -5,14 +5,17 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { SceneManager } from './world/sceneManager';
-import { LightingMode, LOCATIONS, LocationData } from './types';
+import { LightingMode, LOCATIONS, LocationData, BuildingInfo, ViewMode, BUILDINGS } from './types';
 import { soundManager } from './utils/audio';
 import { Navbar } from './components/Navbar';
 import { HeroOverlay } from './components/HeroOverlay';
 import { LocationDrawer } from './components/LocationDrawer';
 import { LandmarkDetailModal } from './components/LandmarkDetailModal';
+import { BuildingInfoCard } from './components/BuildingInfoCard';
+import { DestinationBanner } from './components/DestinationBanner';
 import { BottomControlDock } from './components/BottomControlDock';
 import { AboutModal } from './components/AboutModal';
+import { Footer } from './components/Footer';
 import { LoadingScreen } from './components/LoadingScreen';
 import { WebGLFallback } from './components/WebGLFallback';
 
@@ -28,11 +31,18 @@ export default function App() {
   const [cinemaMode, setCinemaMode] = useState(false);
 
   // World States
-  const [lightingMode, setLightingMode] = useState<LightingMode>('cyber-night');
+  const [lightingMode, setLightingMode] = useState<LightingMode>('day');
+  const [viewMode, setViewMode] = useState<ViewMode>('aerial');
   const [autoRotate, setAutoRotate] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(false);
+  const [simulationActive, setSimulationActive] = useState(true);
+  const [ecoMode, setEcoMode] = useState(false);
+  const [timeOfDay, setTimeOfDay] = useState(12.0);
+  const [formattedTime, setFormattedTime] = useState('12:00 PM');
+  const [autoDayNight, setAutoDayNight] = useState(true);
   const [activeLocationId, setActiveLocationId] = useState<string | null>(null);
   const [selectedLandmark, setSelectedLandmark] = useState<LocationData | null>(null);
+  const [selectedBuilding, setSelectedBuilding] = useState<BuildingInfo | null>(null);
   const [hoveredLandmark, setHoveredLandmark] = useState<string | null>(null);
 
   // Modals & Panels
@@ -72,10 +82,20 @@ export default function App() {
       onSelectLandmark: (loc) => {
         setActiveLocationId(loc.id);
         setSelectedLandmark(loc);
+        setSelectedBuilding(null);
+        soundManager.playInteractSound();
+      },
+      onSelectBuilding: (building) => {
+        setSelectedBuilding(building);
         soundManager.playInteractSound();
       },
       onHoverLandmark: (name) => {
         setHoveredLandmark(name);
+      },
+      onTimeChange: (timeStr, hour, mode) => {
+        setFormattedTime(timeStr);
+        setTimeOfDay(hour);
+        setLightingMode(mode);
       },
       onLoadingComplete: () => {
         clearInterval(progressTimer);
@@ -108,6 +128,31 @@ export default function App() {
     handleSelectLighting(modes[nextIdx]);
   }, [lightingMode, handleSelectLighting]);
 
+  // Handle Automated Day-Night Cycle
+  const handleToggleAutoDayNight = useCallback(() => {
+    setAutoDayNight((prev) => {
+      const next = !prev;
+      sceneManagerRef.current?.toggleAutoDayNight(next);
+      return next;
+    });
+    soundManager.playInteractSound();
+  }, []);
+
+  const handleSetTimeOfDay = useCallback((hour: number) => {
+    setTimeOfDay(hour);
+    sceneManagerRef.current?.setTimeOfDay(hour);
+  }, []);
+
+  // Handle View Mode Toggle (Aerial Overview vs Street Level Exploration)
+  const handleToggleViewMode = useCallback(() => {
+    setViewMode((prev) => {
+      const next: ViewMode = prev === 'aerial' ? 'street' : 'aerial';
+      sceneManagerRef.current?.setViewMode(next);
+      return next;
+    });
+    soundManager.playInteractSound();
+  }, []);
+
   // Handle Auto-Orbit
   const handleToggleAutoRotate = useCallback(() => {
     setAutoRotate((prev) => {
@@ -131,11 +176,33 @@ export default function App() {
     });
   }, []);
 
-  // Handle Reset View
+  // Handle Living Simulation Toggle (Vehicles & Pedestrians)
+  const handleToggleSimulation = useCallback(() => {
+    setSimulationActive((prev) => {
+      const next = !prev;
+      sceneManagerRef.current?.setSimulationActive(next);
+      return next;
+    });
+    soundManager.playInteractSound();
+  }, []);
+
+  // Handle Eco Mode Toggle (Low Power / Mobile Battery Saver)
+  const handleToggleEcoMode = useCallback(() => {
+    setEcoMode((prev) => {
+      const next = !prev;
+      sceneManagerRef.current?.setEcoMode(next);
+      return next;
+    });
+    soundManager.playInteractSound();
+  }, []);
+
+  // Handle Reset View (Returns to wide aerial overview)
   const handleResetView = useCallback(() => {
     sceneManagerRef.current?.resetView();
     setActiveLocationId(null);
     setSelectedLandmark(null);
+    setSelectedBuilding(null);
+    setViewMode('aerial');
     soundManager.playInteractSound();
   }, []);
 
@@ -143,15 +210,31 @@ export default function App() {
   const handleSelectLocation = useCallback((loc: LocationData) => {
     setActiveLocationId(loc.id);
     setSelectedLandmark(loc);
+    setSelectedBuilding(null);
     sceneManagerRef.current?.travelToLocation(loc);
+    soundManager.playInteractSound();
+  }, []);
+
+  // Handle Building Selection & Focus
+  const handleSelectBuilding = useCallback((building: BuildingInfo) => {
+    setSelectedBuilding(building);
+    setActiveLocationId(null);
+    setSelectedLandmark(null);
+    sceneManagerRef.current?.selectBuilding(building);
+    soundManager.playInteractSound();
+  }, []);
+
+  const handleFocusBuildingStreetLevel = useCallback((building: BuildingInfo) => {
+    sceneManagerRef.current?.flyTo(building.cameraPos, building.target, 1.6);
+    setViewMode('street');
     soundManager.playInteractSound();
   }, []);
 
   // Handle Explore World Button (Cinematic fly-in)
   const handleExploreWorld = useCallback(() => {
     setHeroDismissed(true);
-    // Smoothly fly camera into a closer cinematic inspection flyover
-    sceneManagerRef.current?.flyTo([18, 14, 28], [0, 2.5, 0], 2.0);
+    // Smoothly fly camera into a closer cinematic inspection flyover over Town Center and Central Park
+    sceneManagerRef.current?.flyTo([-18, 14, 32], [-8, 2, 0], 2.0);
     soundManager.playInteractSound();
   }, []);
 
@@ -160,22 +243,25 @@ export default function App() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setSelectedLandmark(null);
+        setSelectedBuilding(null);
         setIsDrawerOpen(false);
         setIsAboutOpen(false);
-      } else if (e.key.toLowerCase() === 'h' && !isDrawerOpen && !isAboutOpen && !selectedLandmark) {
+      } else if (e.key.toLowerCase() === 'h' && !isDrawerOpen && !isAboutOpen && !selectedLandmark && !selectedBuilding) {
         setCinemaMode((prev) => !prev);
-      } else if (e.key === ' ' && !isDrawerOpen && !isAboutOpen && !selectedLandmark) {
+      } else if (e.key === ' ' && !isDrawerOpen && !isAboutOpen && !selectedLandmark && !selectedBuilding) {
         e.preventDefault();
         handleToggleAutoRotate();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isDrawerOpen, isAboutOpen, selectedLandmark, handleToggleAutoRotate]);
+  }, [isDrawerOpen, isAboutOpen, selectedLandmark, selectedBuilding, handleToggleAutoRotate]);
 
   if (!hasWebGL) {
     return <WebGLFallback />;
   }
+
+  const activeLocation = LOCATIONS.find((l) => l.id === activeLocationId) || null;
 
   return (
     <main className="relative w-screen h-screen overflow-hidden bg-[#060913] select-none text-slate-100">
@@ -185,7 +271,7 @@ export default function App() {
       {/* 2. Isolated WebGL Canvas Container */}
       <div
         ref={mountRef}
-        className="absolute inset-0 z-0 w-full h-full cursor-grab active:cursor-grabbing outline-none"
+        className="absolute inset-0 z-0 w-full h-full cursor-grab active:cursor-grabbing outline-none touch-none"
         tabIndex={0}
         aria-label="3DWorld Interactive Viewport"
       />
@@ -198,38 +284,46 @@ export default function App() {
         </p>
 
         <section id="explore">
-          <h2>Explore 3DWorld Floating Archipelago</h2>
+          <h2>Explore 3DWorld Modern Village & Living Environment</h2>
           <p>
-            Step into a living, real-time 3D universe built with WebGL and Three.js. Navigate across an ancient floating archipelago in the sky, orbit majestic landmarks, cycle atmospheric dawn-to-night lighting, and listen to synthesized ambient soundscapes directly in your web browser.
+            Step into a living, real-time 3D universe built with WebGL and Three.js. Explore an expansive modern village landscape featuring residential neighborhoods, landscaped parks, botanical conservatories, a bustling town center, and serene lakeside recreation directly in your web browser.
           </p>
         </section>
 
         <section id="landmarks-list">
-          <h2>Featured Floating Island Landmarks</h2>
+          <h2>Featured Modern Village Districts</h2>
           <article>
-            <h3>Crystal Valley</h3>
-            <p>Ancient subterranean geodes and towering resonant amethyst spires projecting harmonic frequencies across the floating isle.</p>
+            <h3>Town Center</h3>
+            <p>Civic plaza, modern library with clock tower, outdoor cafés, bakery, boutique shops, and pedestrian dining terraces.</p>
           </article>
           <article>
-            <h3>Sky Temple</h3>
-            <p>The central celestial landmark featuring layered rotating rings, glowing arcane runes, crystal fragments, and radiant energy portals connecting dimensional planes.</p>
+            <h3>Residential District</h3>
+            <p>Contemporary two-story villas and multi-unit residences with landscaped front gardens, balconies, driveways, and quiet tree-lined avenues.</p>
           </article>
           <article>
-            <h3>Aurora Forest</h3>
-            <p>Bioluminescent elder canopies, ethereal flora, ground bushes, and drifting starlight particles illuminating the island's western ridge.</p>
+            <h3>Central Park</h3>
+            <p>Expansive green lawns, grand ornamental tiered water fountain, classic gazebo pavilion, children's playground, and winding promenade trails.</p>
           </article>
           <article>
-            <h3>Cloud City</h3>
-            <p>Anti-gravity futuristic towers, observation citadels, architectural sky bridges, and glowing windows suspended high above the cloud sea.</p>
+            <h3>Botanical Garden</h3>
+            <p>Steel-framed glass greenhouse conservatory, geometric parterre flower displays, ornamental boxwood topiary, and water lily ponds.</p>
+          </article>
+          <article>
+            <h3>Lake District</h3>
+            <p>Scenic freshwater lake bordered by wooden promenades, an arched footbridge, waterfront picnic spots, weeping willows, and panoramic hills.</p>
           </article>
         </section>
 
         <section id="about-info">
           <h2>About 3DWorld Project</h2>
           <p>
-            3DWorld is an interactive virtual-world showcase engineered for discovering imaginative environments directly in modern web browsers. Featuring real procedural geometry, physical PBR materials, responsive camera controls, and zero external asset dependencies.
+            3DWorld is an interactive virtual-world experience created by Shahanur Mollah. Explore imaginative landscapes, floating islands, crystal formations, futuristic architecture, and immersive 3D environments.
           </p>
         </section>
+
+        <footer>
+          <p>© 2026 3DWorld. Created by Shahanur Mollah.</p>
+        </footer>
       </div>
 
       {/* 4. Top Navigation Bar */}
@@ -248,9 +342,20 @@ export default function App() {
         cinemaMode={cinemaMode}
         onToggleCinema={() => setCinemaMode(!cinemaMode)}
         hoveredLandmark={hoveredLandmark}
+        formattedTime={formattedTime}
       />
 
-      {/* 5. Hero Intro Overlay (Full-screen hero presentation) */}
+      {/* 5. Destination Banner (When visiting a specific district) */}
+      {!cinemaMode && activeLocation && !selectedBuilding && (
+        <DestinationBanner
+          location={activeLocation}
+          onReturnToOverview={handleResetView}
+          onSelectNext={(nextLoc) => handleSelectLocation(nextLoc)}
+          onClose={() => setActiveLocationId(null)}
+        />
+      )}
+
+      {/* 6. Hero Intro Overlay (Full-screen hero presentation) */}
       {!cinemaMode && (
         <HeroOverlay
           onExploreWorld={handleExploreWorld}
@@ -261,7 +366,20 @@ export default function App() {
         />
       )}
 
-      {/* 6. Collapsible Bottom Control Dock (Zero Viewport Occlusion) */}
+      {/* 7. Clickable Building Information Card */}
+      {!cinemaMode && (
+        <BuildingInfoCard
+          building={selectedBuilding}
+          onClose={() => {
+            setSelectedBuilding(null);
+            sceneManagerRef.current?.selectBuilding(null);
+          }}
+          onFocusStreetLevel={handleFocusBuildingStreetLevel}
+          onReturnToOverview={handleResetView}
+        />
+      )}
+
+      {/* 8. Collapsible Bottom Control Dock (Zero Viewport Occlusion) */}
       {!cinemaMode && (
         <BottomControlDock
           onResetView={handleResetView}
@@ -274,18 +392,31 @@ export default function App() {
           soundEnabled={soundEnabled}
           onToggleSound={handleToggleSound}
           onOpenDiscover={() => setIsDrawerOpen(true)}
+          viewMode={viewMode}
+          onToggleViewMode={handleToggleViewMode}
+          simulationActive={simulationActive}
+          onToggleSimulation={handleToggleSimulation}
+          ecoMode={ecoMode}
+          onToggleEcoMode={handleToggleEcoMode}
+          timeOfDay={timeOfDay}
+          formattedTime={formattedTime}
+          autoDayNight={autoDayNight}
+          onToggleAutoDayNight={handleToggleAutoDayNight}
+          onSetTimeOfDay={handleSetTimeOfDay}
         />
       )}
 
-      {/* 7. Discover Locations Slide-out Drawer */}
+      {/* 9. Discover & Search Destinations Slide-out Drawer */}
       <LocationDrawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
         activeLocationId={activeLocationId}
+        activeBuildingId={selectedBuilding?.id}
         onSelectLocation={handleSelectLocation}
+        onSelectBuilding={handleSelectBuilding}
       />
 
-      {/* 8. Landmark Detail Modal (upon clicking a 3D beacon or selecting from drawer) */}
+      {/* 10. Landmark Detail Modal (upon clicking a 3D beacon or selecting from drawer) */}
       <LandmarkDetailModal
         landmark={selectedLandmark}
         onClose={() => setSelectedLandmark(null)}
@@ -293,11 +424,14 @@ export default function App() {
         onFocusCamera={(loc) => sceneManagerRef.current?.travelToLocation(loc)}
       />
 
-      {/* 9. About 3DWorld Modal */}
+      {/* 11. About 3DWorld Modal */}
       <AboutModal
         isOpen={isAboutOpen}
         onClose={() => setIsAboutOpen(false)}
       />
+
+      {/* 12. Persistent Footer Credit (Zero Dock Overlap) */}
+      <Footer cinemaMode={cinemaMode} />
     </main>
   );
 }

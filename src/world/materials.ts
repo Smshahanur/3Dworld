@@ -3,111 +3,154 @@ import * as THREE from 'three';
 /**
  * Procedural texture generators using 2D Canvas.
  * 100% zero-dependency, zero-404, high-fidelity PBR surfaces.
+ * Strictly periodic & seamless boundary wrapping to prevent tiling seams/checkerboards.
  */
 
-// Procedural rock strata / cliff texture with erosion and moss veins
-export function createRockTexture(): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 512;
-  const ctx = canvas.getContext('2d')!;
-
-  // Base stone gradient with rich earthy slate tones
-  const grad = ctx.createLinearGradient(0, 0, 0, 512);
-  grad.addColorStop(0, '#333e54');
-  grad.addColorStop(0.35, '#22293a');
-  grad.addColorStop(0.7, '#181e2b');
-  grad.addColorStop(1, '#0f1420');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 512, 512);
-
-  // Geological sedimentary strata
-  for (let i = 0; i < 60; i++) {
-    const y = Math.random() * 512;
-    const h = 2 + Math.random() * 12;
-    const isLight = Math.random() > 0.45;
-    ctx.fillStyle = isLight
-      ? `rgba(90, 110, 145, ${0.12 + Math.random() * 0.18})`
-      : `rgba(10, 15, 24, ${0.25 + Math.random() * 0.25})`;
-    ctx.fillRect(0, y, 512, h);
-  }
-
-  // Micro-crevices and moss fissures
-  for (let i = 0; i < 25; i++) {
-    const y = Math.random() * 512;
-    ctx.strokeStyle = Math.random() > 0.5 ? 'rgba(20, 80, 60, 0.22)' : 'rgba(5, 8, 15, 0.45)';
-    ctx.lineWidth = 1 + Math.random() * 2;
-    ctx.beginPath();
-    let cx = 0;
-    ctx.moveTo(cx, y);
-    while (cx < 512) {
-      cx += 15 + Math.random() * 25;
-      ctx.lineTo(cx, y + (Math.random() - 0.5) * 8);
-    }
-    ctx.stroke();
-  }
-
-  // Organic fine noise speckling
-  const imgData = ctx.getImageData(0, 0, 512, 512);
-  const data = imgData.data;
-  for (let i = 0; i < data.length; i += 4) {
-    const noise = (Math.random() - 0.5) * 28;
-    data[i] = Math.min(255, Math.max(0, data[i] + noise));
-    data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + noise));
-    data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + noise));
-  }
-  ctx.putImageData(imgData, 0, 0);
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(4, 4);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
-// Procedural rich grass / moss texture with clover/wildflower accents
+// Procedural rich seamless meadow grass texture without directional gradients
 export function createGrassTexture(): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = 512;
   canvas.height = 512;
   const ctx = canvas.getContext('2d')!;
 
-  // Lush emerald-teal base
-  const grad = ctx.createRadialGradient(256, 256, 20, 256, 256, 320);
-  grad.addColorStop(0, '#105244');
-  grad.addColorStop(0.5, '#0b3e34');
-  grad.addColorStop(1, '#072b24');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 512, 512);
+  // 1. Continuous periodic harmonic field for natural turf variations (strictly wraps seamlessly)
+  const imgData = ctx.createImageData(512, 512);
+  const data = imgData.data;
 
-  // Soft moss & meadow patches
-  for (let i = 0; i < 90; i++) {
-    const x = Math.random() * 512;
-    const y = Math.random() * 512;
-    const r = 12 + Math.random() * 45;
-    const pGrad = ctx.createRadialGradient(x, y, 0, x, y, r);
-    const rColor = Math.random();
-    if (rColor < 0.45) {
-      pGrad.addColorStop(0, 'rgba(46, 204, 113, 0.38)'); // vibrant emerald
-    } else if (rColor < 0.8) {
-      pGrad.addColorStop(0, 'rgba(26, 188, 156, 0.42)'); // teal shimmer
-    } else {
-      pGrad.addColorStop(0, 'rgba(234, 179, 8, 0.22)'); // golden lichen
+  // Precompute periodic harmonics
+  for (let y = 0; y < 512; y++) {
+    const ny = (y / 512) * Math.PI * 2;
+    for (let x = 0; x < 512; x++) {
+      const nx = (x / 512) * Math.PI * 2;
+
+      // Harmonic sum (multi-scale organic turf noise)
+      const h1 = Math.sin(nx) * Math.cos(ny);
+      const h2 = Math.sin(nx * 2 + 0.8) * Math.sin(ny * 2 + 0.4);
+      const h3 = Math.cos(nx * 4 + ny * 2) * 0.5;
+      const h4 = Math.sin(nx * 8) * Math.cos(ny * 8) * 0.25;
+      const val = (h1 + h2 + h3 + h4) / 2.75; // Normalized approx -1 to 1
+
+      // Blend between rich meadow green (R:45, G:106, B:70) and fresh vibrant lawn (R:68, G:158, B:104)
+      const t = (val + 1) * 0.5;
+      const r = Math.floor(45 + t * 24);
+      const g = Math.floor(104 + t * 54);
+      const b = Math.floor(68 + t * 34);
+
+      // Fine micro blade noise
+      const noise = (Math.random() - 0.5) * 16;
+      const idx = (y * 512 + x) * 4;
+      data[idx] = Math.min(255, Math.max(0, r + noise * 0.6));
+      data[idx + 1] = Math.min(255, Math.max(0, g + noise * 1.1));
+      data[idx + 2] = Math.min(255, Math.max(0, b + noise * 0.7));
+      data[idx + 3] = 255;
     }
-    pGrad.addColorStop(1, 'rgba(7, 43, 36, 0)');
-    ctx.fillStyle = pGrad;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
+  }
+  ctx.putImageData(imgData, 0, 0);
+
+  // 2. Add toroidally wrapped turf clumping & clover flecks
+  for (let i = 0; i < 90; i++) {
+    const cx = Math.random() * 512;
+    const cy = Math.random() * 512;
+    const rad = 6 + Math.random() * 18;
+    const alpha = 0.12 + Math.random() * 0.18;
+    const isLighter = Math.random() > 0.45;
+    const fillStyle = isLighter
+      ? `rgba(134, 239, 172, ${alpha})`
+      : `rgba(22, 101, 52, ${alpha})`;
+
+    // Draw with seamless periodic boundary offsets
+    for (const ox of [-512, 0, 512]) {
+      for (const oy of [-512, 0, 512]) {
+        const px = cx + ox;
+        const py = cy + oy;
+        if (px + rad > 0 && px - rad < 512 && py + rad > 0 && py - rad < 512) {
+          ctx.beginPath();
+          ctx.fillStyle = fillStyle;
+          ctx.arc(px, py, rad, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
   }
 
-  // Micro foliage tufts
-  ctx.fillStyle = 'rgba(74, 222, 128, 0.3)';
-  for (let i = 0; i < 400; i++) {
-    const x = Math.random() * 512;
-    const y = Math.random() * 512;
-    ctx.fillRect(x, y, 2, 3);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(18, 18);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+// Procedural seamless asphalt road texture with subtle aggregate
+export function createAsphaltTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.fillStyle = '#21262d';
+  ctx.fillRect(0, 0, 512, 512);
+
+  // Periodic aggregate variation
+  const imgData = ctx.getImageData(0, 0, 512, 512);
+  const data = imgData.data;
+  for (let y = 0; y < 512; y++) {
+    const ny = (y / 512) * Math.PI * 2;
+    for (let x = 0; x < 512; x++) {
+      const nx = (x / 512) * Math.PI * 2;
+      const wave = Math.sin(nx * 6) * Math.cos(ny * 6) * 4;
+      const grain = (Math.random() - 0.5) * 22;
+      const idx = (y * 512 + x) * 4;
+      data[idx] = Math.min(255, Math.max(0, data[idx] + wave + grain));
+      data[idx + 1] = Math.min(255, Math.max(0, data[idx + 1] + wave + grain));
+      data[idx + 2] = Math.min(255, Math.max(0, data[idx + 2] + wave + grain + 2));
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(8, 8);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+// Procedural stone / plaza paver texture
+export function createPaverTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillRect(0, 0, 256, 256);
+
+  // Paver grid
+  const tileSize = 32;
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 2;
+  for (let x = 0; x <= 256; x += tileSize) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, 256);
+    ctx.stroke();
+  }
+  for (let y = 0; y <= 256; y += tileSize) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(256, y);
+    ctx.stroke();
+  }
+
+  // Paver tile hue variation
+  for (let x = 0; x < 256; x += tileSize) {
+    for (let y = 0; y < 256; y += tileSize) {
+      if (Math.random() > 0.4) {
+        ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
+        ctx.fillRect(x + 2, y + 2, tileSize - 4, tileSize - 4);
+      }
+    }
   }
 
   const texture = new THREE.CanvasTexture(canvas);
@@ -118,426 +161,531 @@ export function createGrassTexture(): THREE.CanvasTexture {
   return texture;
 }
 
-// Procedural runic glyphs / celestial symbols for portal and temples
-export function createRunicTexture(): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 1024;
-  canvas.height = 128;
-  const ctx = canvas.getContext('2d')!;
-
-  ctx.fillStyle = '#050b14';
-  ctx.fillRect(0, 0, 1024, 128);
-
-  // Golden and cyan glowing celestial runes
-  ctx.strokeStyle = '#38bdf8';
-  ctx.lineWidth = 2.5;
-  ctx.shadowColor = '#38bdf8';
-  ctx.shadowBlur = 12;
-
-  for (let x = 20; x < 1000; x += 45) {
-    ctx.beginPath();
-    ctx.moveTo(x, 64);
-    ctx.lineTo(x + 15, 18);
-    ctx.lineTo(x + 30, 64);
-    ctx.lineTo(x + 15, 110);
-    ctx.closePath();
-    ctx.stroke();
-
-    // Inner orbital rings
-    ctx.beginPath();
-    ctx.arc(x + 15, 64, 7, 0, Math.PI * 2);
-    ctx.fillStyle = Math.random() > 0.4 ? '#67e8f9' : '#facc15';
-    ctx.fill();
-
-    // Runic ticks
-    ctx.beginPath();
-    ctx.moveTo(x - 5, 64);
-    ctx.lineTo(x + 35, 64);
-    ctx.stroke();
-  }
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.ClampToEdgeWrapping;
-  texture.repeat.set(2, 1);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
-// Procedural futuristic skyscraper window facade
-export function createWindowFacadeTexture(): THREE.CanvasTexture {
+// Procedural architectural wood plank texture
+export function createWoodPlankTexture(): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = 256;
-  canvas.height = 512;
+  canvas.height = 256;
   const ctx = canvas.getContext('2d')!;
 
-  ctx.fillStyle = '#0b1324';
-  ctx.fillRect(0, 0, 256, 512);
+  ctx.fillStyle = '#9a613d';
+  ctx.fillRect(0, 0, 256, 256);
 
-  const cols = 8;
-  const rows = 24;
-  const cellW = 256 / cols;
-  const cellH = 512 / rows;
-
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const isLit = Math.random() > 0.35;
-      const x = c * cellW + 3;
-      const y = r * cellH + 3;
-      const w = cellW - 6;
-      const h = cellH - 6;
-
-      if (isLit) {
-        const hueChoice = Math.random();
-        ctx.fillStyle = hueChoice < 0.65 ? 'rgba(56, 189, 248, 0.85)' : 'rgba(251, 191, 36, 0.75)';
-        ctx.shadowColor = '#38bdf8';
-        ctx.shadowBlur = 4;
-      } else {
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-        ctx.shadowBlur = 0;
-      }
-      ctx.fillRect(x, y, w, h);
-    }
+  // Horizontal wood slats
+  const slatHeight = 16;
+  for (let y = 0; y < 256; y += slatHeight) {
+    const tone = 0.85 + Math.random() * 0.3;
+    ctx.fillStyle = `rgb(${Math.floor(154 * tone)}, ${Math.floor(97 * tone)}, ${Math.floor(61 * tone)})`;
+    ctx.fillRect(0, y, 256, slatHeight - 1);
+    ctx.fillStyle = '#45220d';
+    ctx.fillRect(0, y + slatHeight - 1, 256, 1);
   }
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(2, 4);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
-// Procedural flowing water foam texture for waterfalls
-export function createWaterFoamTexture(): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 512;
-  const ctx = canvas.getContext('2d')!;
-
-  const grad = ctx.createLinearGradient(0, 0, 0, 512);
-  grad.addColorStop(0, 'rgba(56, 189, 248, 0.8)');
-  grad.addColorStop(0.5, 'rgba(14, 165, 233, 0.9)');
-  grad.addColorStop(1, 'rgba(125, 211, 252, 0.95)');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 256, 512);
-
-  // Vertical foaming speed-lines
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-  for (let i = 0; i < 70; i++) {
-    const x = Math.random() * 256;
-    const y = Math.random() * 512;
-    const h = 20 + Math.random() * 60;
-    ctx.fillRect(x, y, 2 + Math.random() * 3, h);
-  }
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(1, 3);
+  texture.repeat.set(3, 3);
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
 }
 
 export interface MaterialLibrary {
-  rockMaterial: THREE.MeshStandardMaterial;
-  rockCliffMaterial: THREE.MeshStandardMaterial;
+  // Environmental & Landscaping
   grassMaterial: THREE.MeshStandardMaterial;
-  pathStoneMaterial: THREE.MeshStandardMaterial;
-  woodMaterial: THREE.MeshStandardMaterial;
-  portalObsidian: THREE.MeshStandardMaterial;
-  portalGold: THREE.MeshStandardMaterial;
-  portalCore: THREE.MeshStandardMaterial;
-  runicRing: THREE.MeshStandardMaterial;
-  crystalCyan: THREE.MeshPhysicalMaterial;
-  crystalViolet: THREE.MeshPhysicalMaterial;
-  crystalGold: THREE.MeshPhysicalMaterial;
-  templeWhite: THREE.MeshStandardMaterial;
-  templeGold: THREE.MeshStandardMaterial;
-  templeTiles: THREE.MeshStandardMaterial;
-  cityCeramic: THREE.MeshStandardMaterial;
-  cityFacade: THREE.MeshStandardMaterial;
-  cityGlass: THREE.MeshPhysicalMaterial;
-  cityGlowCyan: THREE.MeshStandardMaterial;
-  treeBark: THREE.MeshStandardMaterial;
-  treeFoliageTeal: THREE.MeshStandardMaterial;
-  treeFoliageViolet: THREE.MeshStandardMaterial;
-  flowerPetalMat: THREE.MeshStandardMaterial;
-  mushroomCap: THREE.MeshStandardMaterial;
-  waterfallMat: THREE.MeshStandardMaterial;
-  waterfallFoamTex: THREE.CanvasTexture;
-  beaconMat: THREE.MeshBasicMaterial;
-  cloudMat: THREE.MeshStandardMaterial;
+  parkLawnMaterial: THREE.MeshStandardMaterial;
+  lakeWaterMaterial: THREE.MeshStandardMaterial;
+  riverBankMaterial: THREE.MeshStandardMaterial;
+  rockStoneMaterial: THREE.MeshStandardMaterial;
+  asphaltMaterial: THREE.MeshStandardMaterial;
+  roadMarkingWhite: THREE.MeshBasicMaterial;
+  roadMarkingYellow: THREE.MeshBasicMaterial;
+  sidewalkMaterial: THREE.MeshStandardMaterial;
+  plazaPaverMaterial: THREE.MeshStandardMaterial;
+  gravelPathMaterial: THREE.MeshStandardMaterial;
+  flowerBedMulchMaterial: THREE.MeshStandardMaterial;
+
+  // Architectural
+  modernWhiteStucco: THREE.MeshStandardMaterial;
+  modernDarkSlate: THREE.MeshStandardMaterial;
+  modernWarmBeige: THREE.MeshStandardMaterial;
+  modernWoodSiding: THREE.MeshStandardMaterial;
+  roofTileDark: THREE.MeshStandardMaterial;
+  roofTileTerracotta: THREE.MeshStandardMaterial;
+  glassWindowDay: THREE.MeshStandardMaterial;
+  glassWindowGlow: THREE.MeshStandardMaterial;
+  greenhouseGlass: THREE.MeshStandardMaterial;
+  metalSteel: THREE.MeshStandardMaterial;
+  metalBronze: THREE.MeshStandardMaterial;
+  metalBlack: THREE.MeshStandardMaterial;
+  doorWood: THREE.MeshStandardMaterial;
+  concreteCurbs: THREE.MeshStandardMaterial;
+
+  // Botanical & Foliage
+  treeFoliageDarkGreen: THREE.MeshStandardMaterial;
+  treeFoliageLightGreen: THREE.MeshStandardMaterial;
+  treeFoliageOlive: THREE.MeshStandardMaterial;
+  treeFoliageFloweringPink: THREE.MeshStandardMaterial;
+  treeFoliageWillow: THREE.MeshStandardMaterial;
+  treeTrunkBark: THREE.MeshStandardMaterial;
+  treeTrunkBirch: THREE.MeshStandardMaterial;
+  hedgeBoxwood: THREE.MeshStandardMaterial;
+  flowerRed: THREE.MeshStandardMaterial;
+  flowerLavender: THREE.MeshStandardMaterial;
+  flowerYellow: THREE.MeshStandardMaterial;
+  waterLilyMaterial: THREE.MeshStandardMaterial;
+  lotusBlossomMaterial: THREE.MeshStandardMaterial;
+
+  // Vehicles & Street Furniture
+  carPaintWhite: THREE.MeshStandardMaterial;
+  carPaintBlue: THREE.MeshStandardMaterial;
+  carPaintRed: THREE.MeshStandardMaterial;
+  carPaintGrey: THREE.MeshStandardMaterial;
+  carTireRubber: THREE.MeshStandardMaterial;
+  carGlass: THREE.MeshStandardMaterial;
+  lampGlow: THREE.MeshBasicMaterial;
+  awningStriped: THREE.MeshStandardMaterial;
+  timberBench: THREE.MeshStandardMaterial;
+
+  // Sports Courts & Civic Facilities
+  sportCourtBlue: THREE.MeshStandardMaterial;
+  sportCourtOrange: THREE.MeshStandardMaterial;
+  medicalCrossRed: THREE.MeshStandardMaterial;
+
+  // Vehicle Headlights & Taillights
+  headlightGlow: THREE.MeshBasicMaterial;
+  taillightGlow: THREE.MeshBasicMaterial;
+
+  // Pedestrian Figurines
+  pedestrianShirt1: THREE.MeshStandardMaterial;
+  pedestrianShirt2: THREE.MeshStandardMaterial;
+  pedestrianShirt3: THREE.MeshStandardMaterial;
+  pedestrianPants: THREE.MeshStandardMaterial;
+  pedestrianSkin: THREE.MeshStandardMaterial;
+
+  // Watersports & Kayaks
+  kayakYellow: THREE.MeshStandardMaterial;
+  kayakRed: THREE.MeshStandardMaterial;
+
+  // Helpers
+  updateNightGlow: (isNight: boolean | number) => void;
 }
 
 export function createMaterialLibrary(isSoftwareGl: boolean): MaterialLibrary {
-  const rockTex = createRockTexture();
   const grassTex = createGrassTexture();
-  const runicTex = createRunicTexture();
-  const windowTex = createWindowFacadeTexture();
-  const waterfallFoamTex = createWaterFoamTexture();
+  const asphaltTex = createAsphaltTexture();
+  const paverTex = createPaverTexture();
+  const woodTex = createWoodPlankTexture();
 
-  const rockMaterial = new THREE.MeshStandardMaterial({
-    map: rockTex,
-    roughness: 0.86,
-    metalness: 0.14,
-    color: 0x93a4be,
-    bumpMap: rockTex,
-    bumpScale: 0.12,
-  });
-
-  const rockCliffMaterial = new THREE.MeshStandardMaterial({
-    map: rockTex,
-    roughness: 0.92,
-    metalness: 0.08,
-    color: 0x6e7e96,
-    bumpMap: rockTex,
-    bumpScale: 0.22,
-  });
-
+  // 1. Terrain & Pathways
   const grassMaterial = new THREE.MeshStandardMaterial({
     map: grassTex,
-    roughness: 0.72,
-    metalness: 0.04,
-    color: 0x34d399,
-    bumpMap: grassTex,
-    bumpScale: 0.06,
+    color: 0x48966b,
+    roughness: 0.88,
+    metalness: 0.02,
+    flatShading: false,
   });
 
-  const pathStoneMaterial = new THREE.MeshStandardMaterial({
-    map: rockTex,
-    roughness: 0.78,
-    metalness: 0.12,
-    color: 0xb0bec5,
+  const parkLawnMaterial = new THREE.MeshStandardMaterial({
+    map: grassTex,
+    color: 0x54af79,
+    roughness: 0.84,
+    metalness: 0.02,
   });
 
-  const woodMaterial = new THREE.MeshStandardMaterial({
-    color: 0x5c4033,
+  const lakeWaterMaterial = new THREE.MeshStandardMaterial({
+    color: 0x0284c7,
+    roughness: 0.08,
+    metalness: 0.85,
+    transparent: true,
+    opacity: 0.86,
+  });
+
+  const riverBankMaterial = new THREE.MeshStandardMaterial({
+    color: 0x78716c,
+    roughness: 0.95,
+    metalness: 0.05,
+  });
+
+  const rockStoneMaterial = new THREE.MeshStandardMaterial({
+    color: 0x475569,
+    roughness: 0.88,
+    metalness: 0.1,
+  });
+
+  const asphaltMaterial = new THREE.MeshStandardMaterial({
+    map: asphaltTex,
+    color: 0x242a35,
+    roughness: 0.9,
+    metalness: 0.06,
+  });
+
+  const roadMarkingWhite = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+  });
+
+  const roadMarkingYellow = new THREE.MeshBasicMaterial({
+    color: 0xfacc15,
+  });
+
+  const sidewalkMaterial = new THREE.MeshStandardMaterial({
+    color: 0x94a3b8,
     roughness: 0.8,
     metalness: 0.05,
   });
 
-  const portalObsidian = new THREE.MeshStandardMaterial({
-    color: 0x090e18,
-    roughness: 0.12,
-    metalness: 0.92,
-  });
-
-  const portalGold = new THREE.MeshStandardMaterial({
-    color: 0xf59e0b,
-    roughness: 0.18,
-    metalness: 0.94,
-  });
-
-  const portalCore = new THREE.MeshStandardMaterial({
-    color: 0x38bdf8,
-    emissive: 0x0ea5e9,
-    emissiveIntensity: 2.2,
-    roughness: 0.08,
-    metalness: 0.15,
-    transparent: true,
-    opacity: 0.92,
-  });
-
-  const runicRing = new THREE.MeshStandardMaterial({
-    map: runicTex,
-    emissiveMap: runicTex,
-    emissive: 0x38bdf8,
-    emissiveIntensity: 1.6,
-    roughness: 0.25,
-    metalness: 0.8,
-    side: THREE.DoubleSide,
-  });
-
-  // Prismatic crystal materials with physical refraction and dispersion
-  const crystalCyan = new THREE.MeshPhysicalMaterial({
-    color: 0x38bdf8,
-    emissive: 0x0369a1,
-    emissiveIntensity: 1.1,
-    roughness: 0.08,
+  const concreteCurbs = new THREE.MeshStandardMaterial({
+    color: 0x64748b,
+    roughness: 0.82,
     metalness: 0.05,
-    transmission: isSoftwareGl ? 0 : 0.92,
-    transparent: true,
-    opacity: isSoftwareGl ? 0.78 : 0.95,
-    ior: 1.54,
-    clearcoat: 1.0,
-    clearcoatRoughness: 0.06,
   });
 
-  const crystalViolet = new THREE.MeshPhysicalMaterial({
-    color: 0xc084fc,
-    emissive: 0x6b21a8,
-    emissiveIntensity: 1.2,
-    roughness: 0.1,
-    metalness: 0.05,
-    transmission: isSoftwareGl ? 0 : 0.9,
-    transparent: true,
-    opacity: isSoftwareGl ? 0.78 : 0.95,
-    ior: 1.56,
-    clearcoat: 1.0,
-    clearcoatRoughness: 0.06,
-  });
-
-  const crystalGold = new THREE.MeshPhysicalMaterial({
-    color: 0xfde047,
-    emissive: 0xb45309,
-    emissiveIntensity: 0.9,
-    roughness: 0.12,
+  const plazaPaverMaterial = new THREE.MeshStandardMaterial({
+    map: paverTex,
+    color: 0xcbd5e1,
+    roughness: 0.75,
     metalness: 0.1,
-    transmission: isSoftwareGl ? 0 : 0.88,
-    transparent: true,
-    opacity: isSoftwareGl ? 0.8 : 0.95,
-    ior: 1.54,
-    clearcoat: 1.0,
   });
 
-  // Sky Temple materials
-  const templeWhite = new THREE.MeshStandardMaterial({
+  const gravelPathMaterial = new THREE.MeshStandardMaterial({
+    color: 0xd6d3d1,
+    roughness: 0.95,
+    metalness: 0.02,
+  });
+
+  const flowerBedMulchMaterial = new THREE.MeshStandardMaterial({
+    color: 0x3d2314,
+    roughness: 0.95,
+    metalness: 0.02,
+  });
+
+  // 2. Modern Architecture
+  const modernWhiteStucco = new THREE.MeshStandardMaterial({
     color: 0xf8fafc,
-    roughness: 0.28,
-    metalness: 0.18,
+    roughness: 0.62,
+    metalness: 0.05,
   });
 
-  const templeGold = new THREE.MeshStandardMaterial({
-    color: 0xfbbf24,
-    roughness: 0.2,
-    metalness: 0.92,
+  const modernDarkSlate = new THREE.MeshStandardMaterial({
+    color: 0x1e293b,
+    roughness: 0.68,
+    metalness: 0.15,
   });
 
-  const templeTiles = new THREE.MeshStandardMaterial({
-    color: 0x0284c7,
-    roughness: 0.35,
-    metalness: 0.4,
+  const modernWarmBeige = new THREE.MeshStandardMaterial({
+    color: 0xf1f5f9,
+    roughness: 0.68,
+    metalness: 0.05,
   });
 
-  // Cloud City materials
-  const cityCeramic = new THREE.MeshStandardMaterial({
-    color: 0xe2e8f0,
-    roughness: 0.2,
-    metalness: 0.5,
+  const modernWoodSiding = new THREE.MeshStandardMaterial({
+    map: woodTex,
+    color: 0xb45309,
+    roughness: 0.65,
+    metalness: 0.05,
   });
 
-  const cityFacade = new THREE.MeshStandardMaterial({
-    map: windowTex,
-    emissiveMap: windowTex,
-    emissive: 0x38bdf8,
-    emissiveIntensity: 0.7,
-    roughness: 0.25,
-    metalness: 0.65,
+  const roofTileDark = new THREE.MeshStandardMaterial({
+    color: 0x0f172a,
+    roughness: 0.72,
+    metalness: 0.12,
   });
 
-  const cityGlass = new THREE.MeshPhysicalMaterial({
+  const roofTileTerracotta = new THREE.MeshStandardMaterial({
+    color: 0xc2410c,
+    roughness: 0.78,
+    metalness: 0.05,
+  });
+
+  const glassWindowDay = new THREE.MeshStandardMaterial({
     color: 0x38bdf8,
-    roughness: 0.08,
-    metalness: 0.1,
-    transmission: isSoftwareGl ? 0 : 0.92,
+    roughness: 0.12,
+    metalness: 0.85,
     transparent: true,
-    opacity: isSoftwareGl ? 0.65 : 0.88,
+    opacity: 0.75,
   });
 
-  const cityGlowCyan = new THREE.MeshStandardMaterial({
-    color: 0x22d3ee,
-    emissive: 0x06b6d4,
-    emissiveIntensity: 2.4,
-  });
-
-  // Forest materials
-  const treeBark = new THREE.MeshStandardMaterial({
-    map: rockTex,
-    color: 0x241d1a,
-    roughness: 0.88,
-    metalness: 0.05,
-  });
-
-  const treeFoliageTeal = new THREE.MeshStandardMaterial({
-    color: 0x2dd4bf,
-    emissive: 0x0f766e,
-    emissiveIntensity: 0.6,
-    roughness: 0.4,
-    metalness: 0.05,
-  });
-
-  const treeFoliageViolet = new THREE.MeshStandardMaterial({
-    color: 0xc084fc,
-    emissive: 0x7e22ce,
-    emissiveIntensity: 0.7,
-    roughness: 0.4,
-    metalness: 0.05,
-  });
-
-  const flowerPetalMat = new THREE.MeshStandardMaterial({
-    color: 0xf472b6,
-    emissive: 0xdb2777,
-    emissiveIntensity: 1.2,
-    roughness: 0.3,
-    metalness: 0.1,
-  });
-
-  const mushroomCap = new THREE.MeshStandardMaterial({
-    color: 0xf43f5e,
-    emissive: 0xe11d48,
-    emissiveIntensity: 1.6,
+  const glassWindowGlow = new THREE.MeshStandardMaterial({
+    color: 0xfef08a,
+    emissive: 0xfbbf24,
+    emissiveIntensity: 0.35,
     roughness: 0.25,
+  });
+
+  const greenhouseGlass = new THREE.MeshStandardMaterial({
+    color: 0x67e8f9,
+    roughness: 0.08,
+    metalness: 0.9,
+    transparent: true,
+    opacity: 0.42,
+  });
+
+  const metalSteel = new THREE.MeshStandardMaterial({
+    color: 0xe2e8f0,
+    roughness: 0.32,
+    metalness: 0.85,
+  });
+
+  const metalBronze = new THREE.MeshStandardMaterial({
+    color: 0xd97706,
+    roughness: 0.38,
+    metalness: 0.8,
+  });
+
+  const metalBlack = new THREE.MeshStandardMaterial({
+    color: 0x18181b,
+    roughness: 0.45,
+    metalness: 0.7,
+  });
+
+  const doorWood = new THREE.MeshStandardMaterial({
+    color: 0x78350f,
+    roughness: 0.58,
     metalness: 0.1,
   });
 
-  // Waterfall stream with foaming animated texture
-  const waterfallMat = new THREE.MeshStandardMaterial({
-    map: waterfallFoamTex,
-    color: 0x7dd3fc,
-    emissive: 0x0284c7,
-    emissiveIntensity: 1.1,
+  // 3. Foliage & Botanical
+  const treeFoliageDarkGreen = new THREE.MeshStandardMaterial({
+    color: 0x15803d,
+    roughness: 0.85,
+    metalness: 0.04,
+    flatShading: true,
+  });
+
+  const treeFoliageLightGreen = new THREE.MeshStandardMaterial({
+    color: 0x4ade80,
+    roughness: 0.85,
+    metalness: 0.04,
+    flatShading: true,
+  });
+
+  const treeFoliageOlive = new THREE.MeshStandardMaterial({
+    color: 0x65a30d,
+    roughness: 0.85,
+    metalness: 0.04,
+    flatShading: true,
+  });
+
+  const treeFoliageFloweringPink = new THREE.MeshStandardMaterial({
+    color: 0xf472b6,
+    roughness: 0.82,
+    metalness: 0.04,
+    flatShading: true,
+  });
+
+  const treeFoliageWillow = new THREE.MeshStandardMaterial({
+    color: 0x86efac,
+    roughness: 0.85,
+    metalness: 0.04,
+    flatShading: true,
+  });
+
+  const treeTrunkBark = new THREE.MeshStandardMaterial({
+    color: 0x451a03,
+    roughness: 0.9,
+    metalness: 0.05,
+  });
+
+  const treeTrunkBirch = new THREE.MeshStandardMaterial({
+    color: 0xf8fafc,
+    roughness: 0.82,
+    metalness: 0.05,
+  });
+
+  const hedgeBoxwood = new THREE.MeshStandardMaterial({
+    color: 0x166534,
+    roughness: 0.85,
+    metalness: 0.04,
+  });
+
+  const flowerRed = new THREE.MeshStandardMaterial({
+    color: 0xef4444,
+    roughness: 0.65,
+  });
+
+  const flowerLavender = new THREE.MeshStandardMaterial({
+    color: 0xa855f7,
+    roughness: 0.65,
+  });
+
+  const flowerYellow = new THREE.MeshStandardMaterial({
+    color: 0xfacc15,
+    roughness: 0.65,
+  });
+
+  const waterLilyMaterial = new THREE.MeshStandardMaterial({
+    color: 0x15803d,
+    roughness: 0.5,
+    metalness: 0.1,
+  });
+
+  const lotusBlossomMaterial = new THREE.MeshStandardMaterial({
+    color: 0xf472b6,
+    roughness: 0.45,
+    emissive: 0xf472b6,
+    emissiveIntensity: 0.15,
+  });
+
+  // 4. Vehicles & Amenities
+  const carPaintWhite = new THREE.MeshStandardMaterial({
+    color: 0xf8fafc,
+    roughness: 0.18,
+    metalness: 0.78,
+  });
+
+  const carPaintBlue = new THREE.MeshStandardMaterial({
+    color: 0x2563eb,
+    roughness: 0.18,
+    metalness: 0.82,
+  });
+
+  const carPaintRed = new THREE.MeshStandardMaterial({
+    color: 0xdc2626,
+    roughness: 0.18,
+    metalness: 0.82,
+  });
+
+  const carPaintGrey = new THREE.MeshStandardMaterial({
+    color: 0x334155,
+    roughness: 0.22,
+    metalness: 0.78,
+  });
+
+  const carTireRubber = new THREE.MeshStandardMaterial({
+    color: 0x111827,
+    roughness: 0.92,
+    metalness: 0.08,
+  });
+
+  const carGlass = new THREE.MeshStandardMaterial({
+    color: 0x0f172a,
+    roughness: 0.08,
+    metalness: 0.92,
     transparent: true,
     opacity: 0.85,
-    roughness: 0.12,
-    metalness: 0.1,
-    side: THREE.DoubleSide,
   });
 
-  // 3D Landmark Beacons
-  const beaconMat = new THREE.MeshBasicMaterial({
-    color: 0x38bdf8,
-    transparent: true,
-    opacity: 0.9,
+  const lampGlow = new THREE.MeshBasicMaterial({
+    color: 0xfef08a,
   });
 
-  // Atmospheric Clouds
-  const cloudMat = new THREE.MeshStandardMaterial({
-    color: 0xf8fafc,
-    roughness: 0.9,
-    metalness: 0.02,
-    transparent: true,
-    opacity: 0.82,
+  const awningStriped = new THREE.MeshStandardMaterial({
+    color: 0x0284c7,
+    roughness: 0.68,
   });
+
+  const timberBench = new THREE.MeshStandardMaterial({
+    color: 0x92400e,
+    roughness: 0.72,
+  });
+
+  // Sports Court & Recreation Materials
+  const sportCourtBlue = new THREE.MeshStandardMaterial({
+    color: 0x0284c7,
+    roughness: 0.45,
+  });
+
+  const sportCourtOrange = new THREE.MeshStandardMaterial({
+    color: 0xea580c,
+    roughness: 0.5,
+  });
+
+  // Civic Healthcare Red Cross Accent
+  const medicalCrossRed = new THREE.MeshStandardMaterial({
+    color: 0xef4444,
+    roughness: 0.3,
+    emissive: 0x991b1b,
+    emissiveIntensity: 0.4,
+  });
+
+  // Vehicle Headlights & Taillights
+  const headlightGlow = new THREE.MeshBasicMaterial({
+    color: 0xfffbeb,
+  });
+
+  const taillightGlow = new THREE.MeshBasicMaterial({
+    color: 0xef4444,
+  });
+
+  // Pedestrian Clothing & Figurines
+  const pedestrianShirt1 = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.7 });
+  const pedestrianShirt2 = new THREE.MeshStandardMaterial({ color: 0xe11d48, roughness: 0.7 });
+  const pedestrianShirt3 = new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.7 });
+  const pedestrianPants = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.8 });
+  const pedestrianSkin = new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.6 });
+
+  // Lakeside Kayaks & Watersports
+  const kayakYellow = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.35 });
+  const kayakRed = new THREE.MeshStandardMaterial({ color: 0xf43f5e, roughness: 0.35 });
+
+  const updateNightGlow = (isNight: boolean | number) => {
+    const factor = typeof isNight === 'number' ? Math.max(0, Math.min(1, isNight)) : isNight ? 1 : 0;
+    glassWindowGlow.emissiveIntensity = THREE.MathUtils.lerp(0.25, 0.95, factor);
+    lampGlow.color.lerpColors(new THREE.Color(0xfef9c3), new THREE.Color(0xfef08a), factor);
+    headlightGlow.color.lerpColors(new THREE.Color(0xfef08a), new THREE.Color(0xffffff), factor);
+    taillightGlow.color.lerpColors(new THREE.Color(0xb91c1c), new THREE.Color(0xff0033), factor);
+  };
 
   return {
-    rockMaterial,
-    rockCliffMaterial,
     grassMaterial,
-    pathStoneMaterial,
-    woodMaterial,
-    portalObsidian,
-    portalGold,
-    portalCore,
-    runicRing,
-    crystalCyan,
-    crystalViolet,
-    crystalGold,
-    templeWhite,
-    templeGold,
-    templeTiles,
-    cityCeramic,
-    cityFacade,
-    cityGlass,
-    cityGlowCyan,
-    treeBark,
-    treeFoliageTeal,
-    treeFoliageViolet,
-    flowerPetalMat,
-    mushroomCap,
-    waterfallMat,
-    waterfallFoamTex,
-    beaconMat,
-    cloudMat,
+    parkLawnMaterial,
+    lakeWaterMaterial,
+    riverBankMaterial,
+    rockStoneMaterial,
+    asphaltMaterial,
+    roadMarkingWhite,
+    roadMarkingYellow,
+    sidewalkMaterial,
+    plazaPaverMaterial,
+    gravelPathMaterial,
+    flowerBedMulchMaterial,
+    modernWhiteStucco,
+    modernDarkSlate,
+    modernWarmBeige,
+    modernWoodSiding,
+    roofTileDark,
+    roofTileTerracotta,
+    glassWindowDay,
+    glassWindowGlow,
+    greenhouseGlass,
+    metalSteel,
+    metalBronze,
+    metalBlack,
+    doorWood,
+    concreteCurbs,
+    treeFoliageDarkGreen,
+    treeFoliageLightGreen,
+    treeFoliageOlive,
+    treeFoliageFloweringPink,
+    treeFoliageWillow,
+    treeTrunkBark,
+    treeTrunkBirch,
+    hedgeBoxwood,
+    flowerRed,
+    flowerLavender,
+    flowerYellow,
+    waterLilyMaterial,
+    lotusBlossomMaterial,
+    carPaintWhite,
+    carPaintBlue,
+    carPaintRed,
+    carPaintGrey,
+    carTireRubber,
+    carGlass,
+    lampGlow,
+    awningStriped,
+    timberBench,
+    sportCourtBlue,
+    sportCourtOrange,
+    medicalCrossRed,
+    headlightGlow,
+    taillightGlow,
+    pedestrianShirt1,
+    pedestrianShirt2,
+    pedestrianShirt3,
+    pedestrianPants,
+    pedestrianSkin,
+    kayakYellow,
+    kayakRed,
+    updateNightGlow,
   };
 }

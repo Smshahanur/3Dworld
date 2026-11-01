@@ -2,489 +2,486 @@ import * as THREE from 'three';
 import { MaterialLibrary } from './materials';
 
 /**
- * Creates rich procedural terrain:
- * - Multi-tiered grassy plateau with natural ridges, hollows, and elevated bluffs
- * - Stratified rock cliff faces with jagged overhangs and natural erosion shelves
- * - Undercut bottom with tapered rock roots, stalactites, and floating tethered anchor stones
- * - Arched footbridges with handrails crossing gorges
- * - Multi-tier cascading waterfalls with mist pools
- * - Satellite floating isles and distant layered mountain silhouettes
+ * Creates the vast continuous modern village landscape:
+ * - 240x240m continuous terrain with gentle perimeter hills, landscaped park berms, and lake basin
+ * - Completely flat, flush foundation in building and road zones (zero clipping, zero floating)
+ * - Perimeter mountain ridges for scenic horizon depth
+ * - Realistic asphalt road network with 3D raised concrete curbs, white edge lines, yellow center dashes, crosswalks, and parking stalls
+ * - Reflective lake recreation basin with wooden promenade, shoreline beach ring, and arched bridge
  */
-export function createFloatingIsland(materials: MaterialLibrary): THREE.Group {
-  const islandGroup = new THREE.Group();
-  islandGroup.name = 'FloatingIsland';
+export function createModernVillageLandscape(materials: MaterialLibrary): THREE.Group {
+  const landscapeGroup = new THREE.Group();
+  landscapeGroup.name = 'ModernVillageLandscape';
 
-  const topRadius = 28;
-  const segments = 64;
+  // 1. Continuous Main Ground Terrain (240x240 units)
+  const terrainSize = 240;
+  const terrainSegments = 100;
+  const terrainGeo = new THREE.PlaneGeometry(terrainSize, terrainSize, terrainSegments, terrainSegments);
+  terrainGeo.rotateX(-Math.PI / 2);
 
-  // 1. Detailed Procedural Top Terrain Mesh
-  const topGeo = new THREE.CylinderGeometry(topRadius, topRadius * 0.94, 3.2, segments, 16);
-  const pos = topGeo.attributes.position;
-
+  const pos = terrainGeo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
-    const y = pos.getY(i);
     const z = pos.getZ(i);
 
-    if (y > 0) {
-      const dist = Math.sqrt(x * x + z * z);
-      const angle = Math.atan2(z, x);
+    // Lake Basin Depression in south quadrant: centered around (5, -45)
+    const lakeCenterX = 5;
+    const lakeCenterZ = -45;
+    const distToLake = Math.hypot((x - lakeCenterX) / 1.5, z - lakeCenterZ);
 
-      // Multi-frequency natural procedural terrain heightmap
-      // 1. East Sky Temple highlands
-      const eastHighlands = Math.max(0, (x - 4) / topRadius) * 4.2;
-      // 2. Northwest Crystal Valley depression / canyon
-      const nwValley = (x < 0 && z < 0) ? -Math.min(2.2, Math.sqrt(x * x + z * z) * 0.14) : 0;
-      // 3. South Aurora knolls
-      const southHills = Math.max(0, z / topRadius) * Math.sin(x * 0.3) * 1.8;
-      // 4. Central plaza plateau flattening around portal (r < 7)
-      const centralFlat = dist < 7 ? 0.3 : 1.0;
-      // 5. Organic perlin-like multi-octave noise
-      const noise1 = Math.sin(x * 0.22) * Math.cos(z * 0.22) * 1.5;
-      const noise2 = Math.sin(x * 0.6 + angle * 3) * Math.cos(z * 0.6) * 0.6;
-      const noise3 = Math.cos(angle * 7) * 0.3;
+    let height = 0;
 
-      // Soft edge falloff
-      const edgeDrop = Math.pow(dist / topRadius, 3.5) * 2.0;
-
-      const finalY = y + (eastHighlands + nwValley + southHills + noise1 + noise2 + noise3) * centralFlat - edgeDrop;
-      pos.setY(i, finalY);
-
-      // Slight edge perimeter radial variation
-      if (dist > topRadius * 0.8) {
-        const edgeNoise = (Math.sin(angle * 9) + Math.cos(angle * 13) * 0.5) * 1.4;
-        pos.setX(i, x + (x / dist) * edgeNoise);
-        pos.setZ(i, z + (z / dist) * edgeNoise);
+    if (distToLake < 24) {
+      // Smooth bowl depression for lake
+      const lakeDepth = Math.cos((distToLake / 24) * Math.PI * 0.5) * 2.2;
+      height -= lakeDepth;
+    } else {
+      // Park interior berms: strictly within Central Park lawn (between paths, away from roads)
+      const distToPark = Math.hypot(x - 22, z - -6);
+      if (distToPark < 14 && Math.abs(z) > 4 && Math.abs(x - 22) > 3) {
+        // Soft rolling park mounds (up to 0.22m)
+        height = Math.sin((distToPark / 14) * Math.PI) * 0.22;
+      } else {
+        // Distant rolling hills rising smoothly beyond the village perimeter (> 52m)
+        const distFromCenter = Math.hypot(x, z);
+        if (distFromCenter > 52) {
+          const hillNoise = Math.sin(x * 0.045) * Math.cos(z * 0.045) * 3.6;
+          const outerRise = Math.pow((distFromCenter - 52) / 68, 1.85) * 7.5;
+          height = Math.max(0, hillNoise + outerRise);
+        } else {
+          // Village core: strictly flat at 0.0 so roads, curbs, sidewalks, and buildings sit flush
+          height = 0;
+        }
       }
     }
+
+    pos.setY(i, height);
   }
-  topGeo.computeVertexNormals();
+  terrainGeo.computeVertexNormals();
 
-  const topMesh = new THREE.Mesh(topGeo, materials.grassMaterial);
-  topMesh.position.y = 0.8;
-  topMesh.receiveShadow = true;
-  topMesh.castShadow = true;
-  islandGroup.add(topMesh);
+  const terrainMesh = new THREE.Mesh(terrainGeo, materials.grassMaterial);
+  terrainMesh.position.y = 0;
+  terrainMesh.receiveShadow = true;
+  landscapeGroup.add(terrainMesh);
 
-  // 2. Layered Cliff Strata (3 distinct stepped rock layers below the grass)
-  // Layer A: Upper cliff overhangs
-  const cliff1Geo = new THREE.CylinderGeometry(topRadius * 0.95, topRadius * 0.84, 5.5, segments);
-  deformCliffGeometry(cliff1Geo, 1.8);
-  const cliff1Mesh = new THREE.Mesh(cliff1Geo, materials.rockCliffMaterial);
-  cliff1Mesh.position.y = -2.8;
-  cliff1Mesh.receiveShadow = true;
-  cliff1Mesh.castShadow = true;
-  islandGroup.add(cliff1Mesh);
+  // Shoreline Sand & Gravel Beach Collar Ring around the lake
+  const beachRingGeo = new THREE.RingGeometry(21, 26, 36);
+  beachRingGeo.rotateX(-Math.PI / 2);
+  const beachMesh = new THREE.Mesh(beachRingGeo, materials.riverBankMaterial);
+  beachMesh.position.set(5, -0.25, -45);
+  beachMesh.scale.set(1.4, 1.0, 1.0);
+  beachMesh.receiveShadow = true;
+  landscapeGroup.add(beachMesh);
 
-  // Layer B: Mid-cliff jagged rock shelf
-  const cliff2Geo = new THREE.CylinderGeometry(topRadius * 0.85, topRadius * 0.68, 8, 48);
-  deformCliffGeometry(cliff2Geo, 2.4);
-  const cliff2Mesh = new THREE.Mesh(cliff2Geo, materials.rockMaterial);
-  cliff2Mesh.position.y = -9.2;
-  cliff2Mesh.receiveShadow = true;
-  cliff2Mesh.castShadow = true;
-  islandGroup.add(cliff2Mesh);
+  // 2. Lake Water Surface & Shoreline
+  const lakeWaterGeo = new THREE.PlaneGeometry(58, 40, 28, 28);
+  lakeWaterGeo.rotateX(-Math.PI / 2);
+  const lakeMesh = new THREE.Mesh(lakeWaterGeo, materials.lakeWaterMaterial);
+  lakeMesh.position.set(5, -0.18, -45);
+  lakeMesh.receiveShadow = true;
+  landscapeGroup.add(lakeMesh);
 
-  // Layer C: Deep underside conical core tapering into stalactite roots
-  const underGeo = new THREE.ConeGeometry(topRadius * 0.7, 16, 32);
-  underGeo.rotateX(Math.PI);
-  deformUndersideGeometry(underGeo);
-  const underMesh = new THREE.Mesh(underGeo, materials.rockCliffMaterial);
-  underMesh.position.y = -19;
-  underMesh.receiveShadow = true;
-  underMesh.castShadow = true;
-  islandGroup.add(underMesh);
-
-  // Layer D: Hanging Stalactite Clusters and Floating Anchor Stones
-  const stalactiteClusters = [
-    { x: 0, y: -27, z: 0, r: 2.8, h: 9 },
-    { x: -8, y: -20, z: 6, r: 2.0, h: 8 },
-    { x: 7, y: -21, z: -7, r: 2.2, h: 7.5 },
-    { x: -6, y: -18, z: -9, r: 1.8, h: 6.5 },
-    { x: 9, y: -19, z: 8, r: 2.1, h: 8 },
+  // Decorative shoreline rock boulders along the lake edge
+  const lakeRocks = [
+    { x: -16, z: -35, s: 1.4 },
+    { x: -19, z: -48, s: 1.8 },
+    { x: -8, z: -58, s: 1.5 },
+    { x: 18, z: -57, s: 2.0 },
+    { x: 26, z: -46, s: 1.6 },
+    { x: 22, z: -33, s: 1.3 },
+    { x: -2, z: -30, s: 1.1 },
+    { x: 12, z: -31, s: 1.2 },
+    { x: -12, z: -56, s: 1.6 },
   ];
-  stalactiteClusters.forEach((st) => {
-    const sGeo = new THREE.ConeGeometry(st.r, st.h, 7);
-    sGeo.rotateX(Math.PI);
-    const sMesh = new THREE.Mesh(sGeo, materials.rockMaterial);
-    sMesh.position.set(st.x, st.y, st.z);
-    islandGroup.add(sMesh);
+  lakeRocks.forEach((rock) => {
+    const geo = new THREE.DodecahedronGeometry(rock.s, 1);
+    const m = new THREE.Mesh(geo, materials.rockStoneMaterial);
+    m.position.set(rock.x, -0.4, rock.z);
+    m.scale.set(1.2, 0.7, 1.1);
+    m.rotation.set(Math.random(), Math.random(), Math.random());
+    m.castShadow = true;
+    m.receiveShadow = true;
+    landscapeGroup.add(m);
   });
 
-  // Floating Anchor Stones tethered by celestial beams/energy below the island
-  const tetherConfigs = [
-    { pos: [0, -38, 0], scale: 1.4 },
-    { pos: [-12, -32, 10], scale: 0.9 },
-    { pos: [14, -34, -8], scale: 1.1 },
-    { pos: [-10, -30, -14], scale: 0.8 },
-  ];
-  tetherConfigs.forEach((tc) => {
-    const anchorGroup = createFloatingAnchorStone(materials, tc.scale);
-    anchorGroup.position.set(tc.pos[0], tc.pos[1], tc.pos[2]);
-    islandGroup.add(anchorGroup);
-  });
+  // 3. Distant Mountain Silhouettes on Horizon
+  const mountainRings = 24;
+  for (let i = 0; i < mountainRings; i++) {
+    const ang = (i / mountainRings) * Math.PI * 2;
+    const rad = 145 + Math.sin(i * 3) * 16;
+    const mx = Math.cos(ang) * rad;
+    const mz = Math.sin(ang) * rad;
+    const mHeight = 18 + (i % 3) * 10 + Math.random() * 8;
+    const mBase = 30 + Math.random() * 15;
 
-  // 3. Natural Outcrop Boulders along ridge edges
-  const boulderGeo = new THREE.DodecahedronGeometry(1.8, 1);
-  const boulderGroup = new THREE.Group();
-  for (let i = 0; i < 36; i++) {
-    const angle = (i / 36) * Math.PI * 2;
-    const r = topRadius * (0.8 + Math.random() * 0.16);
-    const rock = new THREE.Mesh(boulderGeo, materials.rockCliffMaterial);
-    const rx = Math.cos(angle) * r;
-    const rz = Math.sin(angle) * r;
-    const ry = (Math.random() - 0.5) * 2.2 + 1.2;
-    const s = 0.9 + Math.random() * 1.8;
-    rock.scale.set(s, s * (0.7 + Math.random() * 0.8), s);
-    rock.position.set(rx, ry, rz);
-    rock.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
-    rock.castShadow = true;
-    rock.receiveShadow = true;
-    boulderGroup.add(rock);
+    const mGeo = new THREE.ConeGeometry(mBase, mHeight, 6);
+    const mMesh = new THREE.Mesh(mGeo, materials.rockStoneMaterial);
+    mMesh.position.set(mx, mHeight * 0.45, mz);
+    mMesh.rotation.y = ang + Math.random() * 0.5;
+    landscapeGroup.add(mMesh);
   }
-  islandGroup.add(boulderGroup);
 
-  // 4. Winding Cobbled Stone Paths with Border Stones & Lantern Posts
-  const pathGroup = createDetailedPaths(materials);
-  islandGroup.add(pathGroup);
+  // 4. Connected Road Network with Curbs, Markings, Crosswalks and Sidewalks
+  createRoadNetwork(landscapeGroup, materials);
 
-  // 5. Arched Wooden / Stone Footbridge crossing south gorge
-  const footbridge = createFootbridge(materials);
-  footbridge.position.set(4, 2.2, 8);
-  footbridge.rotation.y = 0.45;
-  islandGroup.add(footbridge);
+  // 5. Lake Promenade & Arched Pedestrian Footbridge
+  createLakePromenade(landscapeGroup, materials);
 
-  // 6. Cascading Waterfalls (Two Scenic Locations)
-  // Main Waterfall (Southern cliff gorge)
-  const mainWaterfall = createCascadingWaterfall(materials, 1.4);
-  mainWaterfall.position.set(-6, 1.0, 25);
-  mainWaterfall.rotation.y = Math.PI * 0.65;
-  islandGroup.add(mainWaterfall);
-
-  // Secondary Waterfall (North cliff crystal stream)
-  const northWaterfall = createCascadingWaterfall(materials, 0.9);
-  northWaterfall.position.set(-18, 0.2, -18);
-  northWaterfall.rotation.y = -Math.PI * 0.75;
-  islandGroup.add(northWaterfall);
-
-  // 7. Satellite Miniature Floating Isles (6 surrounding atolls)
-  const satelliteConfigs = [
-    { pos: [-38, 5, -20], scale: 0.42, rot: 0.4, type: 'crystal' },
-    { pos: [40, 9, -26], scale: 0.48, rot: -0.6, type: 'shrine' },
-    { pos: [36, -1, 30], scale: 0.38, rot: 1.1, type: 'tree' },
-    { pos: [-34, 3, 34], scale: 0.45, rot: -1.2, type: 'crystal' },
-    { pos: [0, -4, -45], scale: 0.35, rot: 0.2, type: 'ruins' },
-    { pos: [22, -6, -42], scale: 0.32, rot: 0.8, type: 'shrine' },
-  ];
-
-  satelliteConfigs.forEach((cfg) => {
-    const sat = createMiniSatelliteIsland(materials, cfg.scale, cfg.type);
-    sat.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
-    sat.rotation.y = cfg.rot;
-    islandGroup.add(sat);
-  });
-
-  // 8. Distant Layered Mountains & Horizon Spires
-  const horizonGroup = createLayeredHorizonMountains();
-  islandGroup.add(horizonGroup);
-
-  return islandGroup;
+  return landscapeGroup;
 }
 
-function deformCliffGeometry(geo: THREE.CylinderGeometry, magnitude: number) {
-  const p = geo.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i);
-    const y = p.getY(i);
-    const z = p.getZ(i);
-    const ang = Math.atan2(z, x);
-    const noise = Math.sin(ang * 6 + y * 0.5) * Math.cos(ang * 11) * magnitude;
-    p.setX(i, x + (x !== 0 ? (x / Math.abs(x)) : 1) * noise * 0.6);
-    p.setZ(i, z + (z !== 0 ? (z / Math.abs(z)) : 1) * noise * 0.6);
-  }
-  geo.computeVertexNormals();
-}
+/**
+ * Builds the comprehensive village road infrastructure:
+ * - High-grip dark asphalt surface
+ * - 3D raised concrete curbs
+ * - Continuous white edge lines (fog lines)
+ * - Yellow dashed centerlines
+ * - Pedestrian zebra crosswalks
+ * - Paved sidewalks
+ * - Roundabout & parking stalls
+ */
+function createRoadNetwork(group: THREE.Group, materials: MaterialLibrary) {
+  const roadY = 0.08;
+  const curbY = 0.16;
+  const walkY = 0.18;
 
-function deformUndersideGeometry(geo: THREE.ConeGeometry) {
-  const p = geo.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i);
-    const y = p.getY(i);
-    const z = p.getZ(i);
-    const noise = Math.sin(y * 0.4) * Math.cos(x * 0.3 + z * 0.3) * 2.0;
-    p.setX(i, x + noise * 0.5);
-    p.setZ(i, z + noise * 0.5);
-  }
-  geo.computeVertexNormals();
-}
+  // Helper for asphalt road segments with edge lines
+  function addRoadSegment(
+    x: number,
+    z: number,
+    w: number,
+    d: number,
+    isEastWest: boolean = true
+  ) {
+    // Asphalt plane
+    const geo = new THREE.PlaneGeometry(w, d);
+    geo.rotateX(-Math.PI / 2);
+    const mesh = new THREE.Mesh(geo, materials.asphaltMaterial);
+    mesh.position.set(x, roadY, z);
+    mesh.receiveShadow = true;
+    group.add(mesh);
 
-function createFloatingAnchorStone(materials: MaterialLibrary, scale: number): THREE.Group {
-  const group = new THREE.Group();
-  group.scale.setScalar(scale);
-
-  // Inverted fractured crystal anchor rock
-  const rockGeo = new THREE.OctahedronGeometry(3.5, 1);
-  const rock = new THREE.Mesh(rockGeo, materials.rockCliffMaterial);
-  rock.scale.set(1.2, 2.2, 1.2);
-  rock.castShadow = true;
-  group.add(rock);
-
-  // Inlaid glowing crystal core
-  const coreGeo = new THREE.OctahedronGeometry(1.4, 0);
-  const core = new THREE.Mesh(coreGeo, materials.crystalCyan);
-  group.add(core);
-
-  // Upward energy beam connecting rock to island bottom
-  const beamGeo = new THREE.CylinderGeometry(0.08, 0.08, 12, 6);
-  const beamMat = new THREE.MeshBasicMaterial({
-    color: 0x38bdf8,
-    transparent: true,
-    opacity: 0.4,
-  });
-  const beam = new THREE.Mesh(beamGeo, beamMat);
-  beam.position.y = 7;
-  group.add(beam);
-
-  return group;
-}
-
-function createDetailedPaths(materials: MaterialLibrary): THREE.Group {
-  const pathGroup = new THREE.Group();
-  const paverGeo = new THREE.BoxGeometry(1.6, 0.22, 1.3);
-  const borderStoneGeo = new THREE.DodecahedronGeometry(0.35, 0);
-
-  // Helper to lay a path sequence with border stones
-  function buildPathSegment(startX: number, startZ: number, endX: number, endZ: number, startY: number, endY: number, count: number) {
-    for (let i = 0; i <= count; i++) {
-      const t = i / count;
-      const x = THREE.MathUtils.lerp(startX, endX, t) + Math.sin(t * Math.PI) * 1.5;
-      const z = THREE.MathUtils.lerp(startZ, endZ, t);
-      const y = THREE.MathUtils.lerp(startY, endY, t);
-
-      const paver = new THREE.Mesh(paverGeo, materials.pathStoneMaterial);
-      paver.position.set(x, y + 0.1, z);
-      paver.rotation.y = Math.atan2(endZ - startZ, endX - startX) + (Math.random() - 0.5) * 0.15;
-      paver.scale.set(0.9 + Math.random() * 0.3, 1, 0.9 + Math.random() * 0.3);
-      paver.receiveShadow = true;
-      pathGroup.add(paver);
-
-      // Border rock pebbles
-      if (i % 2 === 0) {
-        const perpX = -Math.sin(paver.rotation.y);
-        const perpZ = Math.cos(paver.rotation.y);
-        const bL = new THREE.Mesh(borderStoneGeo, materials.rockMaterial);
-        bL.position.set(x + perpX * 1.1, y + 0.15, z + perpZ * 1.1);
-        pathGroup.add(bL);
-
-        const bR = new THREE.Mesh(borderStoneGeo, materials.rockMaterial);
-        bR.position.set(x - perpX * 1.1, y + 0.15, z - perpZ * 1.1);
-        pathGroup.add(bR);
+    // Continuous White Edge Lines (Fog lines) along both road shoulders
+    const edgeLineWidth = 0.16;
+    if (isEastWest) {
+      const halfD = d * 0.5 - 0.2;
+      for (const offset of [-halfD, halfD]) {
+        const edgeGeo = new THREE.PlaneGeometry(w, edgeLineWidth);
+        edgeGeo.rotateX(-Math.PI / 2);
+        const edgeLine = new THREE.Mesh(edgeGeo, materials.roadMarkingWhite);
+        edgeLine.position.set(x, roadY + 0.015, z + offset);
+        group.add(edgeLine);
       }
+    } else {
+      const halfW = w * 0.5 - 0.2;
+      for (const offset of [-halfW, halfW]) {
+        const edgeGeo = new THREE.PlaneGeometry(edgeLineWidth, d);
+        edgeGeo.rotateX(-Math.PI / 2);
+        const edgeLine = new THREE.Mesh(edgeGeo, materials.roadMarkingWhite);
+        edgeLine.position.set(x + offset, roadY + 0.015, z);
+        group.add(edgeLine);
+      }
+    }
+
+    return mesh;
+  }
+
+  // Helper for 3D raised concrete curb & sidewalk running alongside roads
+  function addSidewalkWithCurb(
+    x: number,
+    z: number,
+    w: number,
+    d: number,
+    curbSide: 'north' | 'south' | 'east' | 'west'
+  ) {
+    // Main sidewalk body
+    const walkGeo = new THREE.BoxGeometry(w, 0.18, d);
+    const walkMesh = new THREE.Mesh(walkGeo, materials.sidewalkMaterial);
+    walkMesh.position.set(x, walkY, z);
+    walkMesh.receiveShadow = true;
+    group.add(walkMesh);
+
+    // Raised concrete curb bevel facing the asphalt
+    const curbWidth = 0.18;
+    const curbHeight = 0.22;
+    let curbGeo: THREE.BoxGeometry;
+    let cx = x;
+    let cz = z;
+
+    if (curbSide === 'north') {
+      curbGeo = new THREE.BoxGeometry(w, curbHeight, curbWidth);
+      cz = z + (d * 0.5 - curbWidth * 0.5);
+    } else if (curbSide === 'south') {
+      curbGeo = new THREE.BoxGeometry(w, curbHeight, curbWidth);
+      cz = z - (d * 0.5 - curbWidth * 0.5);
+    } else if (curbSide === 'east') {
+      curbGeo = new THREE.BoxGeometry(curbWidth, curbHeight, d);
+      cx = x + (w * 0.5 - curbWidth * 0.5);
+    } else {
+      curbGeo = new THREE.BoxGeometry(curbWidth, curbHeight, d);
+      cx = x - (w * 0.5 - curbWidth * 0.5);
+    }
+
+    const curbMesh = new THREE.Mesh(curbGeo, materials.concreteCurbs);
+    curbMesh.position.set(cx, curbY, cz);
+    curbMesh.receiveShadow = true;
+    curbMesh.castShadow = true;
+    group.add(curbMesh);
+  }
+
+  // Road 1: Main East-West Boulevard (from Town Center [-42] through Central Roundabout [-5] to Central Park [45])
+  addRoadSegment(2, 0, 84, 8, true);
+  // Sidewalks along Main Boulevard with concrete curbs
+  addSidewalkWithCurb(2, 5.0, 84, 1.8, 'south');
+  addSidewalkWithCurb(2, -5.0, 84, 1.8, 'north');
+
+  // Road 2: North-South Boulevard (from Lake Promenade [z: -30] up to Residential District [z: 55])
+  addRoadSegment(-5, 12, 8, 86, false);
+  // Sidewalks along North-South Boulevard
+  addSidewalkWithCurb(-10.0, 12, 1.8, 86, 'east');
+  addSidewalkWithCurb(0.0, 12, 1.8, 86, 'west');
+
+  // Road 3: Residential Cul-de-sac & Inner Lane
+  addRoadSegment(-32, 40, 46, 7, true);
+  addSidewalkWithCurb(-32, 44.4, 46, 1.6, 'south');
+  addSidewalkWithCurb(-32, 35.6, 46, 1.6, 'north');
+
+  // Residential North Avenue
+  addRoadSegment(-32, 60, 40, 6.5, true);
+  addSidewalkWithCurb(-32, 64.2, 40, 1.6, 'south');
+  addSidewalkWithCurb(-32, 55.8, 40, 1.6, 'north');
+
+  // Road 4: Botanical Gardens Access Drive
+  addRoadSegment(30, 22, 6, 36, false);
+  addSidewalkWithCurb(34.0, 22, 1.8, 36, 'west');
+  addSidewalkWithCurb(26.0, 22, 1.8, 36, 'east');
+
+  // Road 5: Lake Scenic Promenade Road
+  addRoadSegment(0, -28, 54, 7, true);
+  addSidewalkWithCurb(0, -23.8, 54, 1.8, 'south');
+  addSidewalkWithCurb(0, -32.2, 54, 1.8, 'north');
+
+  // Central Roundabout at intersection (-5, 0)
+  const roundOuterGeo = new THREE.RingGeometry(4.2, 8.8, 40);
+  roundOuterGeo.rotateX(-Math.PI / 2);
+  const roundMesh = new THREE.Mesh(roundOuterGeo, materials.asphaltMaterial);
+  roundMesh.position.set(-5, roadY + 0.01, 0);
+  roundMesh.receiveShadow = true;
+  group.add(roundMesh);
+
+  // Roundabout Raised Stone Curb Rim
+  const roundCurbGeo = new THREE.RingGeometry(3.9, 4.3, 40);
+  roundCurbGeo.rotateX(-Math.PI / 2);
+  const roundCurb = new THREE.Mesh(roundCurbGeo, materials.concreteCurbs);
+  roundCurb.position.set(-5, roadY + 0.02, 0);
+  group.add(roundCurb);
+
+  // Roundabout Center Island (Landscaped green circle with decorative flowers and sculpture)
+  const roundIslandGeo = new THREE.CylinderGeometry(3.9, 4.1, 0.45, 36);
+  const roundIsland = new THREE.Mesh(roundIslandGeo, materials.parkLawnMaterial);
+  roundIsland.position.set(-5, 0.22, 0);
+  roundIsland.receiveShadow = true;
+  group.add(roundIsland);
+
+  // Roundabout Flower Border Ring
+  for (let i = 0; i < 16; i++) {
+    const ang = (i / 16) * Math.PI * 2;
+    const fx = -5 + Math.cos(ang) * 3.2;
+    const fz = Math.sin(ang) * 3.2;
+    const flwGeo = new THREE.DodecahedronGeometry(0.22, 0);
+    const flw = new THREE.Mesh(flwGeo, i % 2 === 0 ? materials.flowerYellow : materials.flowerRed);
+    flw.position.set(fx, 0.5, fz);
+    flw.castShadow = true;
+    group.add(flw);
+  }
+
+  // Modern abstract sculpture in roundabout center
+  const sculpBaseGeo = new THREE.CylinderGeometry(1.2, 1.4, 0.6, 16);
+  const sculpBase = new THREE.Mesh(sculpBaseGeo, materials.modernDarkSlate);
+  sculpBase.position.set(-5, 0.65, 0);
+  group.add(sculpBase);
+
+  const ringGeo1 = new THREE.TorusGeometry(1.4, 0.16, 16, 32);
+  const ringMesh1 = new THREE.Mesh(ringGeo1, materials.metalSteel);
+  ringMesh1.position.set(-5, 2.2, 0);
+  ringMesh1.rotation.y = Math.PI / 4;
+  ringMesh1.castShadow = true;
+  group.add(ringMesh1);
+
+  const ringGeo2 = new THREE.TorusGeometry(1.0, 0.14, 16, 32);
+  const ringMesh2 = new THREE.Mesh(ringGeo2, materials.metalBronze);
+  ringMesh2.position.set(-5, 2.2, 0);
+  ringMesh2.rotation.x = Math.PI / 3;
+  ringMesh2.castShadow = true;
+  group.add(ringMesh2);
+
+  // Road Striping: Center Dashed Lines on Main Boulevard
+  for (let x = -36; x <= 42; x += 4.5) {
+    if (Math.abs(x - -5) > 9.5) { // Don't draw across roundabout
+      const dashGeo = new THREE.PlaneGeometry(2.4, 0.22);
+      dashGeo.rotateX(-Math.PI / 2);
+      const dash = new THREE.Mesh(dashGeo, materials.roadMarkingYellow);
+      dash.position.set(x, roadY + 0.02, 0);
+      group.add(dash);
     }
   }
 
-  // Paths radiating from Central Portal (0, 0)
-  buildPathSegment(0, 0, -14, -10, 2.0, 1.4, 14); // to Crystal Valley
-  buildPathSegment(0, 0, 14, -8, 2.0, 4.2, 16);   // to Sky Temple
-  buildPathSegment(0, 0, 10, 13, 2.0, 2.2, 14);   // to Aurora Forest
-  buildPathSegment(0, 0, -12, 11, 2.0, 2.8, 14);  // to Cloud City
+  // Center Dashed Lines on North-South Boulevard
+  for (let z = -24; z <= 50; z += 4.5) {
+    if (Math.abs(z) > 9.5) {
+      const dashGeo = new THREE.PlaneGeometry(0.22, 2.4);
+      dashGeo.rotateX(-Math.PI / 2);
+      const dash = new THREE.Mesh(dashGeo, materials.roadMarkingYellow);
+      dash.position.set(-5, roadY + 0.02, z);
+      group.add(dash);
+    }
+  }
 
-  return pathGroup;
+  // Pedestrian Crosswalks (Zebra Stripes) with Stop Bars
+  const crosswalkPositions = [
+    { x: -16, z: 0, rot: 0 },
+    { x: 8, z: 0, rot: 0 },
+    { x: -5, z: 12, rot: Math.PI / 2 },
+    { x: -5, z: -12, rot: Math.PI / 2 },
+    { x: -26, z: 40, rot: Math.PI / 2 },
+    { x: 30, z: 6, rot: 0 },
+  ];
+
+  crosswalkPositions.forEach((cw) => {
+    // Zebra stripes
+    for (let stripe = -3; stripe <= 3; stripe += 0.85) {
+      const stripeGeo = new THREE.PlaneGeometry(0.48, 3.2);
+      stripeGeo.rotateX(-Math.PI / 2);
+      const sMesh = new THREE.Mesh(stripeGeo, materials.roadMarkingWhite);
+      if (cw.rot === 0) {
+        sMesh.position.set(cw.x + stripe * 0.42, roadY + 0.025, cw.z);
+      } else {
+        sMesh.position.set(cw.x, roadY + 0.025, cw.z + stripe * 0.42);
+        sMesh.rotation.y = Math.PI / 2;
+      }
+      group.add(sMesh);
+    }
+
+    // Stop line bar before zebra crossing
+    const stopBarGeo = new THREE.PlaneGeometry(0.35, 6.5);
+    stopBarGeo.rotateX(-Math.PI / 2);
+    const stopBar = new THREE.Mesh(stopBarGeo, materials.roadMarkingWhite);
+    if (cw.rot === 0) {
+      stopBar.position.set(cw.x - 2.4, roadY + 0.025, cw.z);
+    } else {
+      stopBar.position.set(cw.x, roadY + 0.025, cw.z - 2.4);
+      stopBar.rotation.y = Math.PI / 2;
+    }
+    group.add(stopBar);
+  });
+
+  // Town Center Parking Lot with marked stalls
+  const parkingGeo = new THREE.PlaneGeometry(24, 15);
+  parkingGeo.rotateX(-Math.PI / 2);
+  const parkingMesh = new THREE.Mesh(parkingGeo, materials.asphaltMaterial);
+  parkingMesh.position.set(-24, roadY + 0.01, -12);
+  parkingMesh.receiveShadow = true;
+  group.add(parkingMesh);
+
+  // Concrete curb surrounding the parking lot
+  const curbNorth = new THREE.Mesh(new THREE.BoxGeometry(24, 0.2, 0.2), materials.concreteCurbs);
+  curbNorth.position.set(-24, curbY, -19.5);
+  group.add(curbNorth);
+
+  const curbSouth = new THREE.Mesh(new THREE.BoxGeometry(24, 0.2, 0.2), materials.concreteCurbs);
+  curbSouth.position.set(-24, curbY, -4.5);
+  group.add(curbSouth);
+
+  // Parking stall lines
+  for (let stall = -10; stall <= 10; stall += 2.6) {
+    const lineGeo = new THREE.PlaneGeometry(0.18, 5.4);
+    lineGeo.rotateX(-Math.PI / 2);
+    const line = new THREE.Mesh(lineGeo, materials.roadMarkingWhite);
+    line.position.set(-24 + stall, roadY + 0.025, -12);
+    group.add(line);
+  }
 }
 
-function createFootbridge(materials: MaterialLibrary): THREE.Group {
-  const bridge = new THREE.Group();
-
-  // Arched wooden/stone deck
-  const deckCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-3.2, 0, 0),
-    new THREE.Vector3(0, 0.6, 0),
-    new THREE.Vector3(3.2, 0, 0),
-  ]);
-  const deckGeo = new THREE.TubeGeometry(deckCurve, 16, 0.65, 6, false);
-  const deckMesh = new THREE.Mesh(deckGeo, materials.woodMaterial);
-  deckMesh.scale.set(1, 0.35, 2.2);
+/**
+ * Builds the picturesque Lake District recreation promenade and arched bridge:
+ */
+function createLakePromenade(group: THREE.Group, materials: MaterialLibrary) {
+  // 1. Wooden Marina Deck / Promenade along north lake shoreline
+  const deckGeo = new THREE.BoxGeometry(34, 0.35, 4.8);
+  const deckMesh = new THREE.Mesh(deckGeo, materials.modernWoodSiding);
+  deckMesh.position.set(5, 0.1, -33);
+  deckMesh.receiveShadow = true;
   deckMesh.castShadow = true;
-  bridge.add(deckMesh);
+  group.add(deckMesh);
 
-  // Bridge Stone Piers / Abutments
-  const pierGeo = new THREE.BoxGeometry(0.8, 2.2, 1.8);
-  const pierL = new THREE.Mesh(pierGeo, materials.rockMaterial);
-  pierL.position.set(-3.2, -0.6, 0);
-  bridge.add(pierL);
+  // Mooring Posts / Pilings along deck
+  for (let x = -11; x <= 21; x += 3.6) {
+    const postGeo = new THREE.CylinderGeometry(0.14, 0.14, 1.2, 10);
+    const post = new THREE.Mesh(postGeo, materials.doorWood);
+    post.position.set(x, 0.45, -35.3);
+    post.castShadow = true;
+    group.add(post);
 
-  const pierR = new THREE.Mesh(pierGeo, materials.rockMaterial);
-  pierR.position.set(3.2, -0.6, 0);
-  bridge.add(pierR);
-
-  // Railing Posts & Top Rail
-  const postGeo = new THREE.CylinderGeometry(0.06, 0.08, 1.0, 6);
-  const postOffsets = [-2.8, -1.4, 0, 1.4, 2.8];
-  postOffsets.forEach((px) => {
-    const py = 0.5 + Math.cos(px * 0.45) * 0.3;
-    const postFront = new THREE.Mesh(postGeo, materials.templeGold);
-    postFront.position.set(px, py, 0.9);
-    bridge.add(postFront);
-
-    const postBack = new THREE.Mesh(postGeo, materials.templeGold);
-    postBack.position.set(px, py, -0.9);
-    bridge.add(postBack);
-  });
-
-  return bridge;
-}
-
-function createCascadingWaterfall(materials: MaterialLibrary, widthScale: number): THREE.Group {
-  const waterfall = new THREE.Group();
-
-  // Multi-tier tiered waterfall stream
-  const mainCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(0, 0.2, 0),
-    new THREE.Vector3(0.3, -0.2, 1.2),
-    new THREE.Vector3(0.5, -2.5, 2.0),
-    new THREE.Vector3(0.7, -6.5, 2.8),
-    new THREE.Vector3(0.9, -14.0, 3.6),
-    new THREE.Vector3(1.1, -24.0, 4.4),
-  ]);
-
-  const tubeGeo = new THREE.TubeGeometry(mainCurve, 36, 1.1 * widthScale, 10, false);
-  const waterMesh = new THREE.Mesh(tubeGeo, materials.waterfallMat);
-  waterfall.add(waterMesh);
-
-  // Secondary foaming stream
-  const sideCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-1.0, 0.1, 0.3),
-    new THREE.Vector3(-0.7, -2.8, 1.6),
-    new THREE.Vector3(-0.5, -8.0, 2.4),
-    new THREE.Vector3(-0.3, -18.0, 3.2),
-  ]);
-  const tube2Geo = new THREE.TubeGeometry(sideCurve, 24, 0.6 * widthScale, 8, false);
-  const waterMesh2 = new THREE.Mesh(tube2Geo, materials.waterfallMat);
-  waterfall.add(waterMesh2);
-
-  // Splash Mist Pool at bottom
-  const mistPoolGeo = new THREE.CylinderGeometry(3.5 * widthScale, 4.8 * widthScale, 0.8, 16);
-  const mistPoolMat = new THREE.MeshStandardMaterial({
-    color: 0xbae6fd,
-    emissive: 0x38bdf8,
-    emissiveIntensity: 0.8,
-    transparent: true,
-    opacity: 0.5,
-  });
-  const mistPool = new THREE.Mesh(mistPoolGeo, mistPoolMat);
-  mistPool.position.set(1.1, -24.5, 4.4);
-  waterfall.add(mistPool);
-
-  return waterfall;
-}
-
-function createMiniSatelliteIsland(materials: MaterialLibrary, scale: number, type: string): THREE.Group {
-  const sat = new THREE.Group();
-  sat.scale.setScalar(scale);
-
-  // Layered top grass
-  const topGeo = new THREE.CylinderGeometry(11, 9.5, 2.2, 20);
-  const topMesh = new THREE.Mesh(topGeo, materials.grassMaterial);
-  topMesh.castShadow = true;
-  sat.add(topMesh);
-
-  // Rocky inverted cone
-  const underGeo = new THREE.ConeGeometry(9.5, 16, 18);
-  underGeo.rotateX(Math.PI);
-  const underMesh = new THREE.Mesh(underGeo, materials.rockCliffMaterial);
-  underMesh.position.y = -8.5;
-  underMesh.castShadow = true;
-  sat.add(underMesh);
-
-  // Feature based on island type
-  if (type === 'crystal') {
-    const spireGeo = new THREE.CylinderGeometry(0.1, 1.4, 7, 6);
-    const spire = new THREE.Mesh(spireGeo, materials.crystalCyan);
-    spire.position.y = 4.2;
-    sat.add(spire);
-
-    const spire2 = new THREE.Mesh(spireGeo, materials.crystalViolet);
-    spire2.position.set(2, 3.2, 1);
-    spire2.scale.set(0.7, 0.7, 0.7);
-    sat.add(spire2);
-  } else if (type === 'shrine') {
-    const archGeo = new THREE.TorusGeometry(2.4, 0.28, 8, 16, Math.PI);
-    const arch = new THREE.Mesh(archGeo, materials.templeGold);
-    arch.position.y = 1.2;
-    sat.add(arch);
-
-    const orbGeo = new THREE.SphereGeometry(0.8, 16, 16);
-    const orb = new THREE.Mesh(orbGeo, materials.portalCore);
-    orb.position.y = 3.6;
-    sat.add(orb);
-  } else if (type === 'tree') {
-    const trunkGeo = new THREE.CylinderGeometry(0.3, 0.5, 4, 8);
-    const trunk = new THREE.Mesh(trunkGeo, materials.treeBark);
-    trunk.position.y = 2.0;
-    sat.add(trunk);
-
-    const canopyGeo = new THREE.IcosahedronGeometry(2.2, 2);
-    const canopy = new THREE.Mesh(canopyGeo, materials.treeFoliageTeal);
-    canopy.position.y = 4.8;
-    sat.add(canopy);
-  } else {
-    // Ancient ruins
-    const pillarGeo = new THREE.BoxGeometry(0.8, 4.5, 0.8);
-    const p1 = new THREE.Mesh(pillarGeo, materials.templeWhite);
-    p1.position.set(-2, 2.2, -1);
-    sat.add(p1);
-
-    const p2 = new THREE.Mesh(pillarGeo, materials.templeWhite);
-    p2.position.set(2, 2.2, 1);
-    sat.add(p2);
-
-    const lintel = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.6, 1.2), materials.templeWhite);
-    lintel.position.set(0, 4.6, 0);
-    sat.add(lintel);
+    // Cleat / Rope tie
+    const cleatGeo = new THREE.BoxGeometry(0.3, 0.06, 0.08);
+    const cleat = new THREE.Mesh(cleatGeo, materials.metalSteel);
+    cleat.position.set(x, 0.95, -35.3);
+    group.add(cleat);
   }
 
-  return sat;
-}
+  // Lifebuoy Station on Promenade
+  const buoyPostGeo = new THREE.CylinderGeometry(0.06, 0.06, 1.8, 8);
+  const buoyPost = new THREE.Mesh(buoyPostGeo, materials.metalSteel);
+  buoyPost.position.set(-9, 0.9, -32.5);
+  buoyPost.castShadow = true;
+  group.add(buoyPost);
 
-function createLayeredHorizonMountains(): THREE.Group {
-  const group = new THREE.Group();
+  const buoyGeo = new THREE.TorusGeometry(0.35, 0.09, 12, 24);
+  const buoy = new THREE.Mesh(buoyGeo, materials.carPaintRed);
+  buoy.position.set(-9, 1.4, -32.5);
+  group.add(buoy);
 
-  // Multi-tier layered mountain silhouettes for atmospheric depth
-  // Tier 1: Mid-distance craggy peaks (R = 140)
-  const midGeo = new THREE.ConeGeometry(16, 50, 7);
-  const midMat = new THREE.MeshStandardMaterial({
-    color: 0x1a2639,
-    roughness: 0.9,
-    metalness: 0.1,
-  });
+  // 2. Arched Pedestrian Footbridge across scenic lake inlet
+  const bridgeGroup = new THREE.Group();
+  bridgeGroup.position.set(24, 0.2, -42);
+  bridgeGroup.rotation.y = -Math.PI / 5;
 
-  const angles1 = [0.4, 1.2, 2.2, 3.4, 4.5, 5.6];
-  angles1.forEach((ang) => {
-    const r = 135 + Math.random() * 25;
-    const mesh = new THREE.Mesh(midGeo, midMat);
-    mesh.position.set(Math.cos(ang) * r, -18 + Math.random() * 12, Math.sin(ang) * r);
-    const s = 1.2 + Math.random() * 1.4;
-    mesh.scale.set(s, s * (1.1 + Math.random() * 0.4), s);
-    group.add(mesh);
-  });
+  const archSpan = 14;
 
-  // Tier 2: Deep background giant mountain spires (R = 220)
-  const deepGeo = new THREE.ConeGeometry(28, 85, 6);
-  const deepMat = new THREE.MeshStandardMaterial({
-    color: 0x0f172a,
-    roughness: 0.95,
-    metalness: 0.05,
-  });
+  const bridgeGeo = new THREE.BoxGeometry(archSpan, 0.32, 2.6);
+  const bridgeMesh = new THREE.Mesh(bridgeGeo, materials.modernWoodSiding);
+  bridgeMesh.position.y = 0.85;
+  bridgeMesh.castShadow = true;
+  bridgeMesh.receiveShadow = true;
+  bridgeGroup.add(bridgeMesh);
 
-  const angles2 = [0.1, 0.8, 1.8, 2.9, 3.9, 5.0];
-  angles2.forEach((ang) => {
-    const r = 210 + Math.random() * 35;
-    const mesh = new THREE.Mesh(deepGeo, deepMat);
-    mesh.position.set(Math.cos(ang) * r, -26 + Math.random() * 15, Math.sin(ang) * r);
-    const s = 1.4 + Math.random() * 1.6;
-    mesh.scale.set(s, s * (1.2 + Math.random() * 0.5), s);
-    group.add(mesh);
-  });
+  // Bridge Stone Abutments
+  const abutGeo = new THREE.BoxGeometry(2.4, 1.4, 3.2);
+  const abut1 = new THREE.Mesh(abutGeo, materials.rockStoneMaterial);
+  abut1.position.set(-archSpan / 2, 0.4, 0);
+  abut1.castShadow = true;
+  bridgeGroup.add(abut1);
 
-  return group;
+  const abut2 = new THREE.Mesh(abutGeo, materials.rockStoneMaterial);
+  abut2.position.set(archSpan / 2, 0.4, 0);
+  abut2.castShadow = true;
+  bridgeGroup.add(abut2);
+
+  // Bridge Handrails & Balusters
+  for (const side of [-1.22, 1.22]) {
+    const railGeo = new THREE.BoxGeometry(archSpan, 0.09, 0.09);
+    const rail = new THREE.Mesh(railGeo, materials.metalSteel);
+    rail.position.set(0, 1.7, side);
+    rail.castShadow = true;
+    bridgeGroup.add(rail);
+
+    for (let rx = -5.8; rx <= 5.8; rx += 1.4) {
+      const balusterGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.85, 8);
+      const baluster = new THREE.Mesh(balusterGeo, materials.metalSteel);
+      baluster.position.set(rx, 1.3, side);
+      bridgeGroup.add(baluster);
+    }
+  }
+
+  group.add(bridgeGroup);
 }

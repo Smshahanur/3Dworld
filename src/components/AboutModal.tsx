@@ -55,7 +55,10 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
         {/* Introduction */}
         <div className="py-5 space-y-3.5 text-sm sm:text-base text-slate-300 leading-relaxed border-b border-white/10">
           <p>
-            <strong className="text-white font-semibold">3DWorld</strong> is an interactive virtual-world experience engineered for discovering imaginative environments directly in your web browser. Suspended high above an endless atmospheric abyss, visitors explore a handcrafted floating fantasy archipelago complete with towering crystal canyons, ancient sky sanctuaries, bioluminescent flora, and futuristic aerodynamic settlements.
+            <strong className="text-white font-semibold">3DWorld</strong> is an interactive virtual-world experience created by <span className="text-cyan-400 font-semibold">Shahanur Mollah</span>. Explore imaginative landscapes, floating islands, crystal formations, futuristic architecture, and immersive 3D environments.
+          </p>
+          <p className="text-slate-400 text-xs sm:text-sm">
+            Experience a spacious, modern village complete with connected neighborhoods, civic plazas, outdoor cafés, contemporary residential villas, lush public parks, botanical conservatories, and scenic lakeside promenades.
           </p>
           <p className="text-slate-400 text-xs sm:text-sm">
             Powered by modern WebGL, Three.js, and procedural rendering mathematics, 3DWorld delivers a living universe with real 3D geometry, responsive mouse and touch navigation, procedural sound synthesis, and zero external asset dependencies.
@@ -83,10 +86,10 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
             <div className="p-3.5 rounded-xl glass-panel border border-white/10">
               <div className="flex items-center gap-2 mb-1.5">
                 <Eye className="w-4 h-4 text-indigo-400" />
-                <h3 className="font-semibold text-sm text-white">Four Unique Biomes</h3>
+                <h3 className="font-semibold text-sm text-white">Five Connected Districts</h3>
               </div>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Journey between Crystal Valley, Sky Temple, Aurora Forest, and Cloud City, anchored by the central dimensional portal.
+                Journey between Town Center, Residential District, Central Park, Botanical Garden, and Lake District.
               </p>
             </div>
 
@@ -114,8 +117,8 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
 
         {/* Semantic Footer & Return Button */}
         <footer className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-white/10">
-          <div className="text-xs font-mono text-slate-500">
-            © 2026 3DWorld • All rights reserved
+          <div className="text-xs font-mono text-slate-400">
+            © 2026 3DWorld. Created by <span className="text-cyan-400 font-semibold">Shahanur Mollah</span>.
           </div>
 
           <button

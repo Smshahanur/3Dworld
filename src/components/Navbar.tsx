@@ -14,6 +14,7 @@ interface NavbarProps {
   cinemaMode: boolean;
   onToggleCinema: () => void;
   hoveredLandmark: string | null;
+  formattedTime?: string;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -28,6 +29,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   cinemaMode,
   onToggleCinema,
   hoveredLandmark,
+  formattedTime,
 }) => {
   if (cinemaMode) {
     return (
@@ -106,14 +108,14 @@ export const Navbar: React.FC<NavbarProps> = ({
         </button>
         <button
           onClick={onExploreClick}
-          aria-label="Explore 3DWorld Floating Archipelago (Cinematic Flyover)"
+          aria-label="Explore 3DWorld Modern Village (Cinematic Flyover)"
           className="px-4 py-1.5 rounded-full text-xs font-medium text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
         >
           Explore
         </button>
         <button
           onClick={onDiscoverClick}
-          aria-label="Discover 3DWorld Landmarks (Crystal Valley, Sky Temple, Aurora Forest, Cloud City)"
+          aria-label="Discover 3DWorld Districts and Buildings (Town Center, Residential, Central Park, Botanical Garden, Lake District)"
           className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium text-cyan-300 hover:text-cyan-200 hover:bg-cyan-950/40 transition-colors cursor-pointer"
         >
           <Compass className="w-3.5 h-3.5" />
@@ -139,7 +141,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full glass-panel border border-white/10 text-xs text-slate-300 hover:text-white hover:border-cyan-400/40 transition-all cursor-pointer"
         >
           {getLightingIcon()}
-          <span className="hidden sm:inline capitalize text-[11px] font-mono">{lightingMode}</span>
+          <span className="hidden sm:inline capitalize text-[11px] font-mono">
+            {formattedTime || lightingMode}
+          </span>
         </button>
 
         {/* Ambient Sound synth toggle */}

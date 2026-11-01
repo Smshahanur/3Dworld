@@ -78,7 +78,7 @@ export const HeroOverlay: React.FC<HeroOverlayProps> = ({
           <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mr-1">
             Jump to:
           </span>
-          {LOCATIONS.slice(0, 4).map((loc) => (
+          {LOCATIONS.map((loc) => (
             <button
               key={loc.id}
               onClick={() => {

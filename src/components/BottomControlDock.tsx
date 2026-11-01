@@ -12,8 +12,16 @@ import {
   Volume2,
   VolumeX,
   Compass,
+  Footprints,
+  Eye,
+  Play,
+  Pause,
+  Zap,
+  ZapOff,
+  Search,
+  Clock,
 } from 'lucide-react';
-import { LightingMode, LOCATIONS, LocationData } from '../types';
+import { LightingMode, LOCATIONS, LocationData, ViewMode } from '../types';
 
 interface BottomControlDockProps {
   onResetView: () => void;
@@ -26,6 +34,17 @@ interface BottomControlDockProps {
   soundEnabled: boolean;
   onToggleSound: () => void;
   onOpenDiscover: () => void;
+  viewMode?: ViewMode;
+  onToggleViewMode?: () => void;
+  simulationActive?: boolean;
+  onToggleSimulation?: () => void;
+  ecoMode?: boolean;
+  onToggleEcoMode?: () => void;
+  timeOfDay?: number;
+  formattedTime?: string;
+  autoDayNight?: boolean;
+  onToggleAutoDayNight?: () => void;
+  onSetTimeOfDay?: (hour: number) => void;
 }
 
 export const BottomControlDock: React.FC<BottomControlDockProps> = ({
@@ -39,15 +58,26 @@ export const BottomControlDock: React.FC<BottomControlDockProps> = ({
   soundEnabled,
   onToggleSound,
   onOpenDiscover,
+  viewMode = 'aerial',
+  onToggleViewMode,
+  simulationActive = true,
+  onToggleSimulation,
+  ecoMode = false,
+  onToggleEcoMode,
+  timeOfDay = 12.0,
+  formattedTime = '12:00 PM',
+  autoDayNight = true,
+  onToggleAutoDayNight,
+  onSetTimeOfDay,
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const activeLoc = LOCATIONS.find((l) => l.id === activeLocationId);
 
   return (
-    <footer
+    <nav
       aria-label="3DWorld Environment Controls"
-      className="fixed bottom-3 sm:bottom-5 left-1/2 -translate-x-1/2 z-30 w-full max-w-[94vw] sm:max-w-3xl pointer-events-none transition-transform duration-300"
+      className="fixed bottom-8 sm:bottom-10 left-1/2 -translate-x-1/2 z-30 w-full max-w-[94vw] sm:max-w-3xl pointer-events-none transition-transform duration-300"
     >
       {/* Collapse Toggle Tab */}
       <div className="flex justify-center mb-1 pointer-events-auto">
@@ -87,6 +117,31 @@ export const BottomControlDock: React.FC<BottomControlDockProps> = ({
                 <span className="font-medium text-[11px] sm:text-xs">Reset</span>
               </button>
 
+              {/* View Mode Toggle (Aerial vs Street Level) */}
+              {onToggleViewMode && (
+                <button
+                  onClick={onToggleViewMode}
+                  className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs transition-all cursor-pointer min-h-[34px] ${
+                    viewMode === 'street'
+                      ? 'bg-amber-950/70 border-amber-400 text-amber-300 shadow-sm shadow-amber-500/20'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-300'
+                  }`}
+                  title={viewMode === 'street' ? 'Switch to Aerial Overview' : 'Switch to Street Level Exploration'}
+                >
+                  {viewMode === 'street' ? (
+                    <>
+                      <Eye className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                      <span className="font-medium text-[11px] sm:text-xs">Street</span>
+                    </>
+                  ) : (
+                    <>
+                      <Footprints className="w-3.5 h-3.5 shrink-0 text-cyan-400" />
+                      <span className="font-medium text-[11px] sm:text-xs">Explore</span>
+                    </>
+                  )}
+                </button>
+              )}
+
               {/* Auto Orbit */}
               <button
                 onClick={onToggleAutoRotate}
@@ -115,13 +170,46 @@ export const BottomControlDock: React.FC<BottomControlDockProps> = ({
                 {soundEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
               </button>
 
-              {/* Mobile Locations Opener */}
+              {/* Simulation Play/Pause Toggle */}
+              {onToggleSimulation && (
+                <button
+                  onClick={onToggleSimulation}
+                  className={`p-2 rounded-xl border transition-all cursor-pointer min-h-[34px] min-w-[34px] flex items-center justify-center ${
+                    simulationActive
+                      ? 'bg-cyan-950/70 border-cyan-400 text-cyan-300 shadow-sm shadow-cyan-500/20'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-400 hover:text-slate-200'
+                  }`}
+                  title={simulationActive ? 'Pause Living Simulation (Vehicles & Pedestrians)' : 'Resume Living Simulation'}
+                  aria-label="Toggle Simulation"
+                >
+                  {simulationActive ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                </button>
+              )}
+
+              {/* Eco / High Performance Mode Toggle */}
+              {onToggleEcoMode && (
+                <button
+                  onClick={onToggleEcoMode}
+                  className={`p-2 rounded-xl border transition-all cursor-pointer min-h-[34px] min-w-[34px] flex items-center justify-center ${
+                    ecoMode
+                      ? 'bg-emerald-950/70 border-emerald-400 text-emerald-300 shadow-sm shadow-emerald-500/20'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-400 hover:text-slate-200'
+                  }`}
+                  title={ecoMode ? 'Eco Mode: ON (Optimized for Mobile/Battery)' : 'Quality Mode: Full Details'}
+                  aria-label="Toggle Eco Mode"
+                >
+                  {ecoMode ? <ZapOff className="w-3.5 h-3.5 text-emerald-400" /> : <Zap className="w-3.5 h-3.5" />}
+                </button>
+              )}
+
+              {/* Search & Destinations Opener */}
               <button
                 onClick={onOpenDiscover}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-cyan-600/30 hover:bg-cyan-600/50 active:bg-cyan-600/70 border border-cyan-500/40 text-cyan-200 text-xs transition-all cursor-pointer md:hidden min-h-[34px]"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-cyan-600/30 hover:bg-cyan-600/50 active:bg-cyan-600/70 border border-cyan-500/40 text-cyan-200 text-xs transition-all cursor-pointer min-h-[34px]"
+                title="Search and Discover all Districts and Buildings"
               >
-                <Compass className="w-3.5 h-3.5 shrink-0" />
-                <span className="text-[11px] font-medium">Locations</span>
+                <Search className="w-3.5 h-3.5 shrink-0" />
+                <span className="text-[11px] font-medium hidden xs:inline sm:inline">Search</span>
               </button>
             </div>
 
@@ -145,75 +233,127 @@ export const BottomControlDock: React.FC<BottomControlDockProps> = ({
               })}
             </div>
 
-            {/* Right: Lighting Atmosphere Selector */}
-            <div className="flex items-center gap-1 bg-black/50 p-1 rounded-xl border border-white/10 shrink-0">
-              <button
-                onClick={() => onSelectLighting('dawn')}
-                className={`p-1.5 rounded-lg text-xs transition-all cursor-pointer ${
-                  lightingMode === 'dawn'
-                    ? 'bg-rose-500/30 text-rose-300 border border-rose-500/50'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-                title="Dawn Atmosphere"
-                aria-label="Dawn Atmosphere"
-              >
-                <Sunrise className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => onSelectLighting('day')}
-                className={`p-1.5 rounded-lg text-xs transition-all cursor-pointer ${
-                  lightingMode === 'day'
-                    ? 'bg-amber-500/30 text-amber-300 border border-amber-500/50'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-                title="Day Atmosphere"
-                aria-label="Day Atmosphere"
-              >
-                <Sun className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => onSelectLighting('twilight')}
-                className={`p-1.5 rounded-lg text-xs transition-all cursor-pointer ${
-                  lightingMode === 'twilight'
-                    ? 'bg-orange-500/30 text-orange-300 border border-orange-500/50'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-                title="Twilight Atmosphere"
-                aria-label="Twilight Atmosphere"
-              >
-                <Sunset className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => onSelectLighting('cyber-night')}
-                className={`p-1.5 rounded-lg text-xs transition-all cursor-pointer ${
-                  lightingMode === 'cyber-night'
-                    ? 'bg-cyan-500/30 text-cyan-300 border border-cyan-500/50'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-                title="Cyber Night Atmosphere"
-                aria-label="Cyber Night Atmosphere"
-              >
-                <Moon className="w-3.5 h-3.5" />
-              </button>
+            {/* Right: Lighting Atmosphere Controls & Time Badge */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {/* Time of Day Indicator Badge with Auto-Cycle Toggle */}
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-white/5 border border-white/10 text-xs">
+                <Clock className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <span className="font-mono text-[11px] font-semibold text-cyan-200 min-w-[58px]">
+                  {formattedTime}
+                </span>
+
+                {onToggleAutoDayNight && (
+                  <button
+                    onClick={onToggleAutoDayNight}
+                    className={`p-1 rounded-md transition-colors cursor-pointer ${
+                      autoDayNight
+                        ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-white/10'
+                    }`}
+                    title={autoDayNight ? 'Pause Real-Time Sun Cycle' : 'Resume Real-Time Sun Cycle'}
+                    aria-label="Toggle Auto Day-Night Cycle"
+                  >
+                    {autoDayNight ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                  </button>
+                )}
+              </div>
+
+              {/* Preset Atmosphere Buttons */}
+              <div className="flex items-center gap-0.5 p-0.5 rounded-xl bg-white/5 border border-white/10">
+                <button
+                  onClick={() => onSelectLighting('dawn')}
+                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                    lightingMode === 'dawn'
+                      ? 'bg-rose-500/30 text-rose-300'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                  title="Dawn Atmosphere (Glide to 06:15 AM)"
+                  aria-label="Dawn Lighting"
+                >
+                  <Sunrise className="w-3.5 h-3.5" />
+                </button>
+
+                <button
+                  onClick={() => onSelectLighting('day')}
+                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                    lightingMode === 'day'
+                      ? 'bg-amber-500/30 text-amber-300'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                  title="Bright Daylight (Glide to 12:00 PM)"
+                  aria-label="Daylight"
+                >
+                  <Sun className="w-3.5 h-3.5" />
+                </button>
+
+                <button
+                  onClick={() => onSelectLighting('twilight')}
+                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                    lightingMode === 'twilight'
+                      ? 'bg-orange-500/30 text-orange-300'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                  title="Sunset / Twilight (Glide to 06:15 PM)"
+                  aria-label="Twilight Lighting"
+                >
+                  <Sunset className="w-3.5 h-3.5" />
+                </button>
+
+                <button
+                  onClick={() => onSelectLighting('cyber-night')}
+                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                    lightingMode === 'cyber-night'
+                      ? 'bg-indigo-500/30 text-indigo-300'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                  title="Cyber-Night Atmosphere (Glide to 10:00 PM)"
+                  aria-label="Cyber-Night Lighting"
+                >
+                  <Moon className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Sub-bar: Active Location & 3DWorld branding footer */}
-          <div className="mt-2 pt-1.5 border-t border-white/5 flex items-center justify-between text-[10px] font-mono text-slate-400">
-            <div className="flex items-center gap-1.5 truncate mr-2">
-              <MapPin className="w-3 h-3 text-cyan-400 shrink-0" />
-              <span className="truncate">
-                {activeLoc ? `${activeLoc.name} (${activeLoc.altitude})` : 'World View • Panoramic Angle'}
+          {/* Time Scrubber Slider Row */}
+          {onSetTimeOfDay && (
+            <div className="mt-2 pt-2 border-t border-white/10 flex items-center gap-2 px-1">
+              <span className="text-[10px] font-mono text-slate-400 shrink-0 flex items-center gap-1">
+                <Sun className="w-3 h-3 text-amber-400" />
+                <span className="hidden sm:inline">Passage of Time:</span>
+              </span>
+              <input
+                type="range"
+                min="0"
+                max="24"
+                step="0.05"
+                value={timeOfDay}
+                onChange={(e) => onSetTimeOfDay(parseFloat(e.target.value))}
+                className="flex-1 h-1.5 bg-white/15 rounded-lg appearance-none cursor-pointer accent-cyan-400 focus:outline-none"
+                title={`Drag to simulate real-time passage of time: ${formattedTime}`}
+                aria-label="Time of Day Slider"
+              />
+              <span className="text-[10px] font-mono text-cyan-300 font-semibold shrink-0">
+                {formattedTime}
               </span>
             </div>
+          )}
 
-            <div className="flex items-center gap-1.5 shrink-0">
-              <span className="text-slate-500 hidden sm:inline">Brand:</span>
-              <span className="text-cyan-400 font-bold tracking-wider">3DWorld</span>
+          {/* Active Landmark Sub-bar when a location is active */}
+          {activeLoc && (
+            <div className="mt-2 pt-2 border-t border-white/10 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2 truncate">
+                <MapPin className="w-3 h-3 text-cyan-400 shrink-0" />
+                <span className="font-semibold text-white truncate">{activeLoc.name}:</span>
+                <span className="text-slate-300 truncate hidden sm:inline">{activeLoc.subtitle}</span>
+              </div>
+              <span className="text-[10px] font-mono text-cyan-300 shrink-0 ml-2">
+                {activeLoc.altitude}
+              </span>
             </div>
-          </div>
+          )}
         </div>
       )}
-    </footer>
+    </nav>
   );
 };
