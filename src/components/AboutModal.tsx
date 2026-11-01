@@ -18,7 +18,13 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
       />
 
       {/* Modal Dialog */}
-      <div className="relative pointer-events-auto w-full max-w-2xl bg-[#090e1a]/95 border border-white/15 rounded-2xl shadow-2xl p-6 sm:p-8 overflow-y-auto max-h-[90vh] text-left">
+      <section
+        id="about"
+        role="dialog"
+        aria-labelledby="about-title"
+        aria-modal="true"
+        className="relative pointer-events-auto w-full max-w-2xl bg-[#090e1a]/95 border border-white/15 rounded-2xl shadow-2xl p-6 sm:p-8 overflow-y-auto max-h-[90vh] text-left"
+      >
         {/* Header */}
         <div className="flex items-start justify-between gap-4 pb-5 border-b border-white/10">
           <div className="flex items-center gap-3">
@@ -28,7 +34,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
               </div>
             </div>
             <div>
-              <h2 className="font-display font-extrabold text-2xl text-white">
+              <h2 id="about-title" className="font-display font-extrabold text-2xl text-white">
                 About 3DWorld
               </h2>
               <div className="text-xs font-mono text-cyan-400">
@@ -106,8 +112,8 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
           </div>
         </div>
 
-        {/* Footer & Return Button */}
-        <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-white/10">
+        {/* Semantic Footer & Return Button */}
+        <footer className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-white/10">
           <div className="text-xs font-mono text-slate-500">
             © 2026 3DWorld • All rights reserved
           </div>
@@ -119,8 +125,8 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
             <ArrowLeft className="w-4 h-4" />
             <span>Return to 3DWorld</span>
           </button>
-        </div>
-      </div>
+        </footer>
+      </section>
     </div>
   );
 };

@@ -24,24 +24,31 @@ export const HeroOverlay: React.FC<HeroOverlayProps> = ({
   return (
     <div className="fixed inset-0 pointer-events-none z-20 flex flex-col justify-between p-3 sm:p-6 pt-16 sm:pt-20 pb-20 sm:pb-24">
       {/* Hero Card Container with Dark Translucent Gradient Backdrop for Readability */}
-      <div className="pointer-events-auto max-w-lg sm:max-w-xl bg-gradient-to-br from-[#060913]/92 via-[#09101f]/85 to-transparent p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-white/10 shadow-2xl backdrop-blur-[2px]">
+      <section
+        aria-labelledby="hero-title"
+        className="pointer-events-auto max-w-lg sm:max-w-xl bg-gradient-to-br from-[#060913]/92 via-[#09101f]/85 to-transparent p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-white/10 shadow-2xl backdrop-blur-[2px]"
+      >
         {/* Category Badge */}
         <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 text-[10px] sm:text-xs font-mono uppercase tracking-widest mb-3">
           <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-          <span>Interactive 3D Universe</span>
+          <span>Interactive 3D Virtual World</span>
         </div>
 
-        {/* Main Headline */}
-        <h1 className="font-display font-extrabold text-2xl sm:text-4xl lg:text-5xl text-white tracking-tight leading-[1.1] mb-2.5 sm:mb-3 drop-shadow-md">
-          YOUR WORLD.{' '}
+        {/* Semantic H1: 3DWorld – Explore an Interactive 3D Virtual World */}
+        <h1
+          id="hero-title"
+          className="font-display font-extrabold text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-[1.15] mb-2.5 sm:mb-3 drop-shadow-md"
+        >
           <span className="bg-gradient-to-r from-cyan-300 via-sky-200 to-indigo-300 bg-clip-text text-transparent">
-            BEYOND REALITY.
+            3DWorld
           </span>
+          <span className="text-slate-400 font-light mx-2">–</span>
+          <span>Explore an Interactive 3D Virtual World</span>
         </h1>
 
-        {/* Subtitle */}
-        <p className="text-slate-300 text-xs sm:text-sm lg:text-base leading-relaxed max-w-md mb-4 sm:mb-5">
-          Step into a living 3D universe. Explore extraordinary places and discover new dimensions suspended in an endless sky.
+        {/* Concise Introduction / Meta Description in visible HTML */}
+        <p className="text-slate-300 text-xs sm:text-sm lg:text-[15px] leading-relaxed max-w-md mb-4 sm:mb-5">
+          Explore 3DWorld, an interactive 3D virtual world featuring floating islands, crystal landscapes, futuristic architecture and immersive environments.
         </p>
 
         {/* Action Buttons */}
@@ -84,7 +91,7 @@ export const HeroOverlay: React.FC<HeroOverlayProps> = ({
             </button>
           ))}
         </div>
-      </div>
+      </section>
 
       {/* Camera Guidance & Dismiss Button */}
       <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-3 pointer-events-auto">

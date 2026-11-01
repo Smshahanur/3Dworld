@@ -93,21 +93,27 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Main Navigation links */}
-      <nav className="pointer-events-auto hidden md:flex items-center gap-1 px-3 py-1.5 rounded-full glass-panel border border-white/10 shadow-xl">
+      <nav
+        aria-label="Primary Navigation"
+        className="pointer-events-auto hidden md:flex items-center gap-1 px-3 py-1.5 rounded-full glass-panel border border-white/10 shadow-xl"
+      >
         <button
           onClick={onHomeClick}
+          aria-label="Navigate to 3DWorld Home Overview"
           className="px-4 py-1.5 rounded-full text-xs font-medium text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
         >
           Home
         </button>
         <button
           onClick={onExploreClick}
+          aria-label="Explore 3DWorld Floating Archipelago (Cinematic Flyover)"
           className="px-4 py-1.5 rounded-full text-xs font-medium text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
         >
           Explore
         </button>
         <button
           onClick={onDiscoverClick}
+          aria-label="Discover 3DWorld Landmarks (Crystal Valley, Sky Temple, Aurora Forest, Cloud City)"
           className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium text-cyan-300 hover:text-cyan-200 hover:bg-cyan-950/40 transition-colors cursor-pointer"
         >
           <Compass className="w-3.5 h-3.5" />
@@ -115,6 +121,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </button>
         <button
           onClick={onAboutClick}
+          aria-label="About 3DWorld Project and Architecture"
           className="flex items-center gap-1 px-4 py-1.5 rounded-full text-xs font-medium text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
         >
           <Info className="w-3.5 h-3.5" />

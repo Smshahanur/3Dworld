@@ -45,7 +45,10 @@ export const BottomControlDock: React.FC<BottomControlDockProps> = ({
   const activeLoc = LOCATIONS.find((l) => l.id === activeLocationId);
 
   return (
-    <div className="fixed bottom-3 sm:bottom-5 left-1/2 -translate-x-1/2 z-30 w-full max-w-[94vw] sm:max-w-3xl pointer-events-none transition-transform duration-300">
+    <footer
+      aria-label="3DWorld Environment Controls"
+      className="fixed bottom-3 sm:bottom-5 left-1/2 -translate-x-1/2 z-30 w-full max-w-[94vw] sm:max-w-3xl pointer-events-none transition-transform duration-300"
+    >
       {/* Collapse Toggle Tab */}
       <div className="flex justify-center mb-1 pointer-events-auto">
         <button
@@ -211,6 +214,6 @@ export const BottomControlDock: React.FC<BottomControlDockProps> = ({
           </div>
         </div>
       )}
-    </div>
+    </footer>
   );
 };

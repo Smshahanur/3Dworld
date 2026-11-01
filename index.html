@@ -2,24 +2,143 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>3DWorld - Explore an Interactive 3D Universe</title>
-    <meta name="description" content="Step into 3DWorld, an interactive 3D universe. Explore floating fantasy islands, glowing crystal valleys, sky temples, and futuristic cloud cities in real-time." />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- Primary Page Title & Meta Description -->
+    <title>3DWorld – Explore an Interactive 3D Virtual World</title>
+    <meta
+      name="description"
+      content="Explore 3DWorld, an interactive 3D virtual world featuring floating islands, crystal landscapes, futuristic architecture and immersive environments."
+    />
+    
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://3dworld-alpha-virid.vercel.app/" />
+
+    <!-- Theme & Search Engine Directives -->
     <meta name="theme-color" content="#060913" />
-    <meta property="og:title" content="3DWorld - Explore an Interactive 3D Universe" />
-    <meta property="og:description" content="Step into 3DWorld, an interactive 3D universe. Explore floating fantasy islands, glowing crystal valleys, sky temples, and futuristic cloud cities in real-time." />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="author" content="3DWorld" />
+
+    <!-- Favicon & Brand Icons -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192x192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/favicon-512x512.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- Open Graph Social Sharing Metadata -->
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="3DWorld" />
+    <meta property="og:url" content="https://3dworld-alpha-virid.vercel.app/" />
+    <meta property="og:title" content="3DWorld – Explore an Interactive 3D Virtual World" />
+    <meta
+      property="og:description"
+      content="Explore 3DWorld, an interactive 3D virtual world featuring floating islands, crystal landscapes, futuristic architecture and immersive environments."
+    />
+    <meta property="og:image" content="https://3dworld-alpha-virid.vercel.app/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:alt" content="3DWorld – Explore an Interactive 3D Virtual World" />
+
+    <!-- Twitter / X Card Metadata -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="3DWorld - Explore an Interactive 3D Universe" />
-    <meta name="twitter:description" content="Step into 3DWorld, an interactive 3D universe. Explore floating fantasy islands, glowing crystal valleys, sky temples, and futuristic cloud cities in real-time." />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%2338bdf8'/%3E%3Cstop offset='50%25' stop-color='%23818cf8'/%3E%3Cstop offset='100%25' stop-color='%23c084fc'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='%23090d16'/%3E%3Cpolygon points='16,4 28,11 28,21 16,28 4,21 4,11' fill='none' stroke='url(%23g)' stroke-width='2.2' stroke-linejoin='round'/%3E%3Ccircle cx='16' cy='16' r='4' fill='url(%23g)'/%3E%3C/svg%3E" />
+    <meta name="twitter:title" content="3DWorld – Explore an Interactive 3D Virtual World" />
+    <meta
+      name="twitter:description"
+      content="Explore 3DWorld, an interactive 3D virtual world featuring floating islands, crystal landscapes, futuristic architecture and immersive environments."
+    />
+    <meta name="twitter:image" content="https://3dworld-alpha-virid.vercel.app/og-image.png" />
+    <meta name="twitter:image:alt" content="3DWorld – Explore an Interactive 3D Virtual World" />
+
+    <!-- Structured Data (Schema.org WebSite JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "3DWorld",
+      "url": "https://3dworld-alpha-virid.vercel.app/",
+      "headline": "3DWorld – Explore an Interactive 3D Virtual World",
+      "description": "Explore 3DWorld, an interactive 3D virtual world featuring floating islands, crystal landscapes, futuristic architecture and immersive environments.",
+      "inLanguage": "en-US",
+      "isFamilyFriendly": true
+    }
+    </script>
+
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
   </head>
   <body class="bg-[#060913] text-slate-100 overflow-x-hidden antialiased selection:bg-cyan-500/30 selection:text-cyan-200">
-    <div id="root"></div>
+    <!-- Static Search-Engine-Friendly Content (pre-rendered for non-JS search crawlers) -->
+    <div id="root">
+      <header>
+        <nav aria-label="Primary Navigation">
+          <a href="/">3DWorld</a>
+          <a href="#explore">Explore</a>
+          <a href="#landmarks">Discover Locations</a>
+          <a href="#about">About</a>
+        </nav>
+      </header>
+
+      <main>
+        <section id="hero">
+          <h1>3DWorld – Explore an Interactive 3D Virtual World</h1>
+          <p>
+            Explore 3DWorld, an interactive 3D virtual world featuring floating islands, crystal landscapes, futuristic architecture and immersive environments.
+          </p>
+        </section>
+
+        <section id="explore">
+          <h2>Explore 3DWorld</h2>
+          <p>
+            Step into a living, real-time 3D universe built with WebGL and Three.js. Navigate across an ancient floating archipelago in the sky, orbit majestic landmarks, cycle atmospheric dawn-to-night lighting, and listen to synthesized ambient soundscapes directly in your web browser.
+          </p>
+        </section>
+
+        <section id="landmarks">
+          <h2>Floating Island Landmarks</h2>
+          <article id="crystal-valley">
+            <h3>Crystal Valley</h3>
+            <p>
+              Ancient subterranean geodes and towering resonant amethyst spires projecting harmonic frequencies across the floating isle.
+            </p>
+          </article>
+          <article id="sky-temple">
+            <h3>Sky Temple</h3>
+            <p>
+              The central celestial landmark featuring layered rotating rings, glowing arcane runes, crystal fragments, and radiant energy portals connecting dimensional planes.
+            </p>
+          </article>
+          <article id="aurora-forest">
+            <h3>Aurora Forest</h3>
+            <p>
+              Bioluminescent elder canopies, ethereal flora, ground bushes, and drifting starlight particles illuminating the island's western ridge.
+            </p>
+          </article>
+          <article id="cloud-city">
+            <h3>Cloud City</h3>
+            <p>
+              Anti-gravity futuristic towers, observation citadels, architectural sky bridges, and glowing windows suspended high above the cloud sea.
+            </p>
+          </article>
+        </section>
+
+        <section id="about">
+          <h2>About 3DWorld</h2>
+          <p>
+            3DWorld is an interactive virtual-world showcase engineered for discovering imaginative environments directly in modern web browsers. Featuring real procedural geometry, physical PBR materials, responsive camera controls, and zero external asset dependencies.
+          </p>
+        </section>
+      </main>
+
+      <footer>
+        <p>© 2026 3DWorld. All rights reserved. Interactive 3D Virtual World Showcase.</p>
+      </footer>
+    </div>
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

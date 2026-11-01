@@ -178,7 +178,7 @@ export default function App() {
   }
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-[#060913] select-none text-slate-100">
+    <main className="relative w-screen h-screen overflow-hidden bg-[#060913] select-none text-slate-100">
       {/* 1. Loading Screen */}
       <LoadingScreen progress={loadProgress} isLoaded={isLoaded} />
 
@@ -190,13 +190,46 @@ export default function App() {
         aria-label="3DWorld Interactive Viewport"
       />
 
-      {/* 3. Essential Semantic Heading for Screen Readers and SEO outside WebGL */}
+      {/* 3. Essential Semantic Heading & Content Structure for Search Engines & Screen Readers */}
       <div className="sr-only">
-        <h1>3DWorld - Explore an Interactive 3D Universe</h1>
+        <h1>3DWorld – Explore an Interactive 3D Virtual World</h1>
         <p>
-          Welcome to 3DWorld, an interactive floating island archipelago in virtual 3D.
-          Locations include Crystal Valley, Sky Temple, Aurora Forest, Cloud City, and The Central Portal.
+          Explore 3DWorld, an interactive 3D virtual world featuring floating islands, crystal landscapes, futuristic architecture and immersive environments.
         </p>
+
+        <section id="explore">
+          <h2>Explore 3DWorld Floating Archipelago</h2>
+          <p>
+            Step into a living, real-time 3D universe built with WebGL and Three.js. Navigate across an ancient floating archipelago in the sky, orbit majestic landmarks, cycle atmospheric dawn-to-night lighting, and listen to synthesized ambient soundscapes directly in your web browser.
+          </p>
+        </section>
+
+        <section id="landmarks-list">
+          <h2>Featured Floating Island Landmarks</h2>
+          <article>
+            <h3>Crystal Valley</h3>
+            <p>Ancient subterranean geodes and towering resonant amethyst spires projecting harmonic frequencies across the floating isle.</p>
+          </article>
+          <article>
+            <h3>Sky Temple</h3>
+            <p>The central celestial landmark featuring layered rotating rings, glowing arcane runes, crystal fragments, and radiant energy portals connecting dimensional planes.</p>
+          </article>
+          <article>
+            <h3>Aurora Forest</h3>
+            <p>Bioluminescent elder canopies, ethereal flora, ground bushes, and drifting starlight particles illuminating the island's western ridge.</p>
+          </article>
+          <article>
+            <h3>Cloud City</h3>
+            <p>Anti-gravity futuristic towers, observation citadels, architectural sky bridges, and glowing windows suspended high above the cloud sea.</p>
+          </article>
+        </section>
+
+        <section id="about-info">
+          <h2>About 3DWorld Project</h2>
+          <p>
+            3DWorld is an interactive virtual-world showcase engineered for discovering imaginative environments directly in modern web browsers. Featuring real procedural geometry, physical PBR materials, responsive camera controls, and zero external asset dependencies.
+          </p>
+        </section>
       </div>
 
       {/* 4. Top Navigation Bar */}
@@ -265,6 +298,6 @@ export default function App() {
         isOpen={isAboutOpen}
         onClose={() => setIsAboutOpen(false)}
       />
-    </div>
+    </main>
   );
 }

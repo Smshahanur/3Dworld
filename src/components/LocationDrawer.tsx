@@ -26,12 +26,18 @@ export const LocationDrawer: React.FC<LocationDrawerProps> = ({
       />
 
       {/* Slide-out Panel */}
-      <div className="relative pointer-events-auto w-full max-w-md h-full bg-[#090e1a]/95 border-l border-white/10 shadow-2xl flex flex-col p-6 overflow-y-auto">
+      <aside
+        id="landmarks"
+        aria-labelledby="landmarks-title"
+        className="relative pointer-events-auto w-full max-w-md h-full bg-[#090e1a]/95 border-l border-white/10 shadow-2xl flex flex-col p-6 overflow-y-auto"
+      >
         {/* Drawer Header */}
         <div className="flex items-center justify-between pb-5 border-b border-white/10">
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-display font-bold text-lg text-white">Discover Locations</span>
+              <h2 id="landmarks-title" className="font-display font-bold text-lg text-white">
+                Discover Locations
+              </h2>
               <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
                 5 Landmarks
               </span>
@@ -55,7 +61,7 @@ export const LocationDrawer: React.FC<LocationDrawerProps> = ({
           {LOCATIONS.map((loc) => {
             const isActive = activeLocationId === loc.id;
             return (
-              <div
+              <article
                 key={loc.id}
                 onClick={() => {
                   onSelectLocation(loc);
@@ -102,7 +108,7 @@ export const LocationDrawer: React.FC<LocationDrawerProps> = ({
                     <ChevronRight className="w-3.5 h-3.5" />
                   </div>
                 </div>
-              </div>
+              </article>
             );
           })}
         </div>
@@ -112,7 +118,7 @@ export const LocationDrawer: React.FC<LocationDrawerProps> = ({
           <Sparkles className="w-4 h-4 text-cyan-400 shrink-0" />
           <span>You can also click on the glowing 3D beacon diamonds directly in the world.</span>
         </div>
-      </div>
+      </aside>
     </div>
   );
 };
