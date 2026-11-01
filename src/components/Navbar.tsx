@@ -1,0 +1,163 @@
+import React from 'react';
+import { Compass, Volume2, VolumeX, Sun, Moon, Sunrise, Sunset, Info, Eye } from 'lucide-react';
+import { LightingMode } from '../types';
+
+interface NavbarProps {
+  onHomeClick: () => void;
+  onExploreClick: () => void;
+  onDiscoverClick: () => void;
+  onAboutClick: () => void;
+  lightingMode: LightingMode;
+  onCycleLighting: () => void;
+  soundEnabled: boolean;
+  onToggleSound: () => void;
+  cinemaMode: boolean;
+  onToggleCinema: () => void;
+  hoveredLandmark: string | null;
+}
+
+export const Navbar: React.FC<NavbarProps> = ({
+  onHomeClick,
+  onExploreClick,
+  onDiscoverClick,
+  onAboutClick,
+  lightingMode,
+  onCycleLighting,
+  soundEnabled,
+  onToggleSound,
+  cinemaMode,
+  onToggleCinema,
+  hoveredLandmark,
+}) => {
+  if (cinemaMode) {
+    return (
+      <div className="fixed top-4 right-4 z-40">
+        <button
+          onClick={onToggleCinema}
+          aria-label="Exit Cinema Mode"
+          className="flex items-center gap-2 px-3 py-1.5 rounded-full glass-panel text-xs text-cyan-300 hover:text-white border border-cyan-500/30 hover:border-cyan-400 transition-all cursor-pointer shadow-lg"
+        >
+          <Eye className="w-3.5 h-3.5" />
+          <span>Exit Cinema</span>
+        </button>
+      </div>
+    );
+  }
+
+  const getLightingIcon = () => {
+    switch (lightingMode) {
+      case 'dawn':
+        return <Sunrise className="w-4 h-4 text-rose-300" />;
+      case 'day':
+        return <Sun className="w-4 h-4 text-amber-300" />;
+      case 'twilight':
+        return <Sunset className="w-4 h-4 text-orange-400" />;
+      case 'cyber-night':
+      default:
+        return <Moon className="w-4 h-4 text-cyan-300" />;
+    }
+  };
+
+  return (
+    <header className="fixed top-0 left-0 right-0 z-40 px-4 sm:px-8 py-3.5 flex items-center justify-between pointer-events-none transition-all duration-300">
+      {/* 3DWorld Logo */}
+      <div className="pointer-events-auto flex items-center gap-3">
+        <button
+          onClick={onHomeClick}
+          className="group flex items-center gap-2.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 rounded-lg p-1"
+          aria-label="3DWorld Home"
+        >
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 via-indigo-500 to-purple-500 p-[1.5px] shadow-lg shadow-cyan-500/20 group-hover:shadow-cyan-400/30 transition-all duration-300">
+            <div className="w-full h-full bg-[#060913] rounded-[10px] flex items-center justify-center">
+              <span className="font-display font-bold text-sm bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">
+                3D
+              </span>
+            </div>
+          </div>
+          <div>
+            <div className="font-display font-extrabold text-lg sm:text-xl tracking-wider text-white group-hover:text-cyan-300 transition-colors">
+              3DWorld
+            </div>
+            <div className="text-[10px] tracking-widest text-slate-400 uppercase -mt-1 font-mono">
+              Virtual Universe
+            </div>
+          </div>
+        </button>
+
+        {hoveredLandmark && (
+          <div className="hidden lg:flex items-center gap-2 px-3 py-1 rounded-full glass-panel border border-cyan-500/30 text-xs text-cyan-300 font-mono">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+            <span>Target: {hoveredLandmark}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Main Navigation links */}
+      <nav className="pointer-events-auto hidden md:flex items-center gap-1 px-3 py-1.5 rounded-full glass-panel border border-white/10 shadow-xl">
+        <button
+          onClick={onHomeClick}
+          className="px-4 py-1.5 rounded-full text-xs font-medium text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+        >
+          Home
+        </button>
+        <button
+          onClick={onExploreClick}
+          className="px-4 py-1.5 rounded-full text-xs font-medium text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+        >
+          Explore
+        </button>
+        <button
+          onClick={onDiscoverClick}
+          className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium text-cyan-300 hover:text-cyan-200 hover:bg-cyan-950/40 transition-colors cursor-pointer"
+        >
+          <Compass className="w-3.5 h-3.5" />
+          <span>Discover</span>
+        </button>
+        <button
+          onClick={onAboutClick}
+          className="flex items-center gap-1 px-4 py-1.5 rounded-full text-xs font-medium text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+        >
+          <Info className="w-3.5 h-3.5" />
+          <span>About</span>
+        </button>
+      </nav>
+
+      {/* Quick controls: Lighting mode, Sound toggle, Cinema */}
+      <div className="pointer-events-auto flex items-center gap-2">
+        {/* Lighting preset cycle button */}
+        <button
+          onClick={onCycleLighting}
+          title={`Atmosphere: ${lightingMode.toUpperCase()} (Click to cycle)`}
+          aria-label={`Current atmosphere: ${lightingMode}. Click to cycle.`}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full glass-panel border border-white/10 text-xs text-slate-300 hover:text-white hover:border-cyan-400/40 transition-all cursor-pointer"
+        >
+          {getLightingIcon()}
+          <span className="hidden sm:inline capitalize text-[11px] font-mono">{lightingMode}</span>
+        </button>
+
+        {/* Ambient Sound synth toggle */}
+        <button
+          onClick={onToggleSound}
+          title={soundEnabled ? 'Mute Ambient Soundscape' : 'Enable Ambient Soundscape'}
+          aria-label={soundEnabled ? 'Mute ambient soundscape' : 'Enable ambient soundscape'}
+          className={`p-2 rounded-full glass-panel border transition-all cursor-pointer ${
+            soundEnabled
+              ? 'border-cyan-500/40 text-cyan-300 bg-cyan-950/30 shadow-sm shadow-cyan-500/20'
+              : 'border-white/10 text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+        </button>
+
+        {/* About button on mobile */}
+        <button
+          onClick={onAboutClick}
+          aria-label="About 3DWorld"
+          className="md:hidden p-2 rounded-full glass-panel border border-white/10 text-slate-300 hover:text-white cursor-pointer"
+        >
+          <Info className="w-4 h-4" />
+        </button>
+      </div>
+    </header>
+  );
+};

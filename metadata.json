@@ -1,0 +1,6 @@
+{
+  "name": "3DWorld",
+  "description": "An interactive 3D virtual-world showcase featuring floating fantasy islands, procedural architecture, atmospheric environments, and immersive exploration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
