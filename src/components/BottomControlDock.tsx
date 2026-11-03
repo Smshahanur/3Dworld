@@ -43,6 +43,9 @@ interface BottomControlDockProps {
   onToggleViewMode?: () => void;
   isBuildMode?: boolean;
   onToggleBuildMode?: () => void;
+  isMultiplayerActive?: boolean;
+  onToggleMultiplayer?: () => void;
+  multiplayerPlayerCount?: number;
   simulationActive?: boolean;
   onToggleSimulation?: () => void;
   trafficActive?: boolean;
@@ -80,6 +83,9 @@ export const BottomControlDock: React.FC<BottomControlDockProps> = ({
   onToggleViewMode,
   isBuildMode = false,
   onToggleBuildMode,
+  isMultiplayerActive = false,
+  onToggleMultiplayer,
+  multiplayerPlayerCount = 1,
   simulationActive = true,
   onToggleSimulation,
   trafficActive = true,
@@ -186,6 +192,24 @@ export const BottomControlDock: React.FC<BottomControlDockProps> = ({
                 >
                   <Hammer className="w-3.5 h-3.5 shrink-0 text-amber-400" />
                   <span className="font-medium text-[11px] sm:text-xs">Build</span>
+                </button>
+              )}
+
+              {/* Multiplayer Virtual World Button */}
+              {onToggleMultiplayer && (
+                <button
+                  onClick={onToggleMultiplayer}
+                  className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs transition-all cursor-pointer min-h-[34px] ${
+                    isMultiplayerActive
+                      ? 'bg-emerald-950/70 border-emerald-400 text-emerald-300 shadow-sm shadow-emerald-500/20'
+                      : 'bg-emerald-950/30 hover:bg-emerald-950/60 border-emerald-500/30 text-emerald-300 hover:text-emerald-200'
+                  }`}
+                  title={isMultiplayerActive ? 'Multiplayer World Active' : 'Enter Multiplayer Virtual World'}
+                >
+                  <Users className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+                  <span className="font-medium text-[11px] sm:text-xs">
+                    {isMultiplayerActive ? `Online (${multiplayerPlayerCount})` : 'Online'}
+                  </span>
                 </button>
               )}
 

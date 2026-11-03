@@ -11,6 +11,8 @@ import { DayNightCycleController, InterpolatedLightState } from './dayNightCycle
 import { LightingMode, LOCATIONS, LocationData, BUILDINGS, BuildingInfo, ViewMode, GraphicsQuality, SimulationSpeed } from '../types';
 import { ConstructionManager } from '../builder/constructionManager';
 import { CustomPlacedObject } from '../builder/types';
+import { AvatarManager } from '../multiplayer/avatarManager';
+import { PlayerData } from '../multiplayer/types';
 
 export interface SceneManagerOptions {
   container: HTMLDivElement;
@@ -22,6 +24,7 @@ export interface SceneManagerOptions {
   onBuildStateChange?: () => void;
   onBudgetChange?: (balance: number) => void;
   onSelectCustomObject?: (object: CustomPlacedObject | null) => void;
+  onSelectRemotePlayer?: (player: PlayerData) => void;
 }
 
 export class SceneManager {
@@ -34,6 +37,7 @@ export class SceneManager {
   private animComponents!: AnimatedLandmarkComponents;
   private livingWorld!: LivingWorldManager;
   public construction!: ConstructionManager;
+  public avatars!: AvatarManager;
   public isBuildMode: boolean = false;
   private dayNight = new DayNightCycleController(12.0, true);
   private skyUniforms!: {
@@ -99,6 +103,7 @@ export class SceneManager {
   private onBuildStateChange?: () => void;
   private onBudgetChange?: (balance: number) => void;
   private onSelectCustomObject?: (object: CustomPlacedObject | null) => void;
+  private onSelectRemotePlayer?: (player: PlayerData) => void;
 
   constructor(options: SceneManagerOptions) {
     this.container = options.container;
@@ -110,6 +115,7 @@ export class SceneManager {
     this.onBuildStateChange = options.onBuildStateChange;
     this.onBudgetChange = options.onBudgetChange;
     this.onSelectCustomObject = options.onSelectCustomObject;
+    this.onSelectRemotePlayer = options.onSelectRemotePlayer;
 
     this.init();
   }
@@ -298,6 +304,9 @@ export class SceneManager {
       },
       onBudgetChange: (b) => this.onBudgetChange?.(b),
     });
+
+    // 13. Multiplayer Avatars Manager
+    this.avatars = new AvatarManager(this.scene, this.camera, this.materials, this.isSoftwareGl);
 
     // Set initial Day atmosphere
     this.setLightingMode('day');
@@ -848,6 +857,15 @@ export class SceneManager {
         }
       }
 
+      // Check if remote player was clicked
+      if (!this.isBuildMode && this.avatars) {
+        const remotePlayer = this.avatars.raycastAvatar(this.raycaster);
+        if (remotePlayer) {
+          this.onSelectRemotePlayer?.(remotePlayer);
+          return;
+        }
+      }
+
       const allInteractive = [...this.beaconMeshes, ...this.clickableBuildingMeshes];
       const intersects = this.raycaster.intersectObjects(allInteractive, false);
 
@@ -966,6 +984,11 @@ export class SceneManager {
         this.livingWorld.update(delta, elapsed);
       }
 
+      // Update multiplayer avatars (local avatar walking & remote players smooth interpolation)
+      if (this.avatars) {
+        this.avatars.update(delta);
+      }
+
       // Update particle systems
       if (this.updateParticles) {
         this.updateParticles(delta, elapsed);
@@ -1016,6 +1039,7 @@ export class SceneManager {
     }
 
     this.construction?.dispose();
+    this.avatars?.dispose();
     this.livingWorld?.dispose();
     this.controls?.dispose();
     this.renderer?.dispose();

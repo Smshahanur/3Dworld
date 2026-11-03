@@ -16,6 +16,13 @@ import { DestinationBanner } from './components/DestinationBanner';
 import { BottomControlDock } from './components/BottomControlDock';
 import { BuildToolbar } from './components/BuildToolbar';
 import { CatalogItem, CustomPlacedObject } from './builder/types';
+import { MultiplayerModal } from './components/MultiplayerModal';
+import { MultiplayerHUD } from './components/MultiplayerHUD';
+import { MultiplayerChat } from './components/MultiplayerChat';
+import { VirtualJoystick } from './components/VirtualJoystick';
+import { PlayerProfileModal } from './components/PlayerProfileModal';
+import { multiplayerService } from './multiplayer/multiplayerService';
+import { PlayerData, ChatMessage, MultiplayerUser } from './multiplayer/types';
 import { AboutModal } from './components/AboutModal';
 import { Footer } from './components/Footer';
 import { LoadingScreen } from './components/LoadingScreen';
@@ -45,6 +52,17 @@ export default function App() {
     isValid: true,
     reason: '',
   });
+
+  // Multiplayer Virtual World State
+  const [isMultiplayerModalOpen, setIsMultiplayerModalOpen] = useState(false);
+  const [isMultiplayerActive, setIsMultiplayerActive] = useState(false);
+  const [multiplayerUser, setMultiplayerUser] = useState<MultiplayerUser | null>(null);
+  const [remotePlayers, setRemotePlayers] = useState<PlayerData[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [followCamera, setFollowCamera] = useState(true);
+  const [selectedRemotePlayer, setSelectedRemotePlayer] = useState<PlayerData | null>(null);
 
   // Persistent World & Simulation Preferences
   const [lightingMode, setLightingMode] = useState<LightingMode>('day');
@@ -146,6 +164,10 @@ export default function App() {
       },
       onBudgetChange: (b) => setBudget(b),
       onSelectCustomObject: (obj) => setSelectedCustomObject(obj),
+      onSelectRemotePlayer: (player) => {
+        setSelectedRemotePlayer(player);
+        soundManager.playInteractSound();
+      },
       onLoadingComplete: () => {
         clearInterval(progressTimer);
         setLoadProgress(100);
@@ -339,6 +361,71 @@ export default function App() {
     sceneManagerRef.current?.flyTo(building.cameraPos, building.target, 1.6);
     setViewMode('street');
     soundManager.playInteractSound();
+  }, []);
+
+  // Subscribe to Multiplayer Service updates
+  useEffect(() => {
+    const unsubPlayers = multiplayerService.onRemotePlayersUpdate((players) => {
+      setRemotePlayers(players);
+    });
+
+    const unsubChat = multiplayerService.onChatUpdate((msgs) => {
+      setChatMessages(msgs);
+      if (!isChatOpen && msgs.length > 0) {
+        setUnreadChatCount((prev) => prev + 1);
+      }
+    });
+
+    return () => {
+      unsubPlayers();
+      unsubChat();
+    };
+  }, [isChatOpen]);
+
+  // Handle Multiplayer Online Actions
+  const handleToggleMultiplayer = useCallback(() => {
+    setIsMultiplayerModalOpen((prev) => !prev);
+    soundManager.playInteractSound();
+  }, []);
+
+  const handleJoinedMultiplayer = useCallback((user: MultiplayerUser) => {
+    setMultiplayerUser(user);
+    setIsMultiplayerActive(true);
+    setHeroDismissed(true);
+    setSelectedLandmark(null);
+    setSelectedBuilding(null);
+    setActiveLocationId(null);
+
+    // Spawn 3D avatar in village
+    sceneManagerRef.current?.avatars.spawnLocalAvatar(
+      user.displayName,
+      user.avatarColor,
+      user.avatarType
+    );
+    sceneManagerRef.current?.avatars.setFollowCamera(true);
+    setFollowCamera(true);
+
+    // Join online Firestore realm
+    multiplayerService.joinMultiplayerWorld();
+    soundManager.playInteractSound();
+  }, []);
+
+  const handleLeaveMultiplayer = useCallback(() => {
+    multiplayerService.leaveMultiplayerWorld();
+    sceneManagerRef.current?.avatars.removeLocalAvatar();
+    sceneManagerRef.current?.avatars.setFollowCamera(false);
+    setIsMultiplayerActive(false);
+    setMultiplayerUser(null);
+    soundManager.playInteractSound();
+  }, []);
+
+  const handleToggleFollowCamera = useCallback(() => {
+    setFollowCamera((prev) => {
+      const next = !prev;
+      sceneManagerRef.current?.avatars.setFollowCamera(next);
+      soundManager.playInteractSound();
+      return next;
+    });
   }, []);
 
   // Handle Construction & Build Mode Actions
@@ -555,6 +642,9 @@ export default function App() {
         onAboutClick={() => setIsAboutOpen(true)}
         isBuildMode={isBuildMode}
         onToggleBuildMode={() => handleToggleBuildMode()}
+        isMultiplayerActive={isMultiplayerActive}
+        onToggleMultiplayer={handleToggleMultiplayer}
+        multiplayerPlayerCount={remotePlayers.length + 1}
         lightingMode={lightingMode}
         onCycleLighting={handleCycleLighting}
         soundEnabled={soundEnabled}
@@ -595,7 +685,7 @@ export default function App() {
       )}
 
       {/* 6. Hero Intro Overlay (Full-screen hero presentation) */}
-      {!cinemaMode && !isBuildMode && (
+      {!cinemaMode && !isBuildMode && !isMultiplayerActive && (
         <HeroOverlay
           onExploreWorld={handleExploreWorld}
           onDiscoverLocations={() => setIsDrawerOpen(true)}
@@ -635,6 +725,9 @@ export default function App() {
           onToggleViewMode={handleToggleViewMode}
           isBuildMode={isBuildMode}
           onToggleBuildMode={() => handleToggleBuildMode()}
+          isMultiplayerActive={isMultiplayerActive}
+          onToggleMultiplayer={handleToggleMultiplayer}
+          multiplayerPlayerCount={remotePlayers.length + 1}
           simulationActive={simulationActive}
           onToggleSimulation={handleToggleSimulation}
           trafficActive={trafficActive}
@@ -686,6 +779,52 @@ export default function App() {
           onExitBuildMode={() => handleToggleBuildMode(false)}
         />
       )}
+
+      {/* 8c. Multiplayer HUD & Real-time Controls */}
+      {!cinemaMode && isMultiplayerActive && multiplayerUser && (
+        <>
+          <MultiplayerHUD
+            user={multiplayerUser}
+            remotePlayers={remotePlayers}
+            followCamera={followCamera}
+            onToggleFollowCamera={handleToggleFollowCamera}
+            isChatOpen={isChatOpen}
+            onToggleChat={() => {
+              setIsChatOpen(!isChatOpen);
+              if (!isChatOpen) setUnreadChatCount(0);
+            }}
+            unreadChatCount={unreadChatCount}
+            onLeaveMultiplayer={handleLeaveMultiplayer}
+            onSelectPlayer={(p) => setSelectedRemotePlayer(p)}
+          />
+
+          <MultiplayerChat
+            isOpen={isChatOpen}
+            onClose={() => setIsChatOpen(false)}
+            messages={chatMessages}
+            currentUserId={multiplayerUser.uid}
+          />
+
+          <VirtualJoystick
+            onMove={(forward, strafe) => {
+              sceneManagerRef.current?.avatars.setTouchJoystickInput(forward, strafe);
+            }}
+          />
+        </>
+      )}
+
+      {/* Multiplayer Entrance Dialog */}
+      <MultiplayerModal
+        isOpen={isMultiplayerModalOpen}
+        onClose={() => setIsMultiplayerModalOpen(false)}
+        onJoined={handleJoinedMultiplayer}
+      />
+
+      {/* Selected Remote Player Profile Card */}
+      <PlayerProfileModal
+        player={selectedRemotePlayer}
+        onClose={() => setSelectedRemotePlayer(null)}
+      />
 
       {/* 9. Discover & Search Destinations Slide-out Drawer */}
       <LocationDrawer

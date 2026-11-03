@@ -1,0 +1,61 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Players collection: Each player can only read others and write their own presence
+    match /players/{playerId} {
+      allow read: if true;
+
+      allow create, update: if isAuthenticated() && isOwner(playerId)
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() > 0
+        && request.resource.data.displayName.size() <= 30
+        && request.resource.data.position is list
+        && request.resource.data.position.size() == 3
+        && request.resource.data.rotation is number
+        && request.resource.data.online is bool;
+
+      allow delete: if isAuthenticated() && isOwner(playerId);
+    }
+
+    // Chat messages: Authenticated users can post messages up to 160 characters
+    match /messages/{messageId} {
+      allow read: if true;
+
+      allow create: if isAuthenticated()
+        && request.resource.data.senderId == request.auth.uid
+        && request.resource.data.senderName is string
+        && request.resource.data.senderName.size() > 0
+        && request.resource.data.senderName.size() <= 30
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 160
+        && request.resource.data.timestamp is number;
+
+      allow update: if false; // Messages are immutable
+      allow delete: if isAuthenticated() && resource.data.senderId == request.auth.uid;
+    }
+
+    // Shared community builds
+    match /shared_builds/{buildId} {
+      allow read: if true;
+
+      allow create: if isAuthenticated()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.position is list
+        && request.resource.data.position.size() == 3;
+
+      allow update, delete: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+    }
+  }
+}

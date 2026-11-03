@@ -1,0 +1,65 @@
+{
+  "entities": {
+    "Player": {
+      "title": "Player",
+      "description": "Multiplayer player presence, position, avatar and identity state",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Authenticated user ID or anonymous guest ID" },
+        "displayName": { "type": "string", "maxLength": 30, "description": "Public player display name" },
+        "avatarColor": { "type": "string", "maxLength": 16, "description": "Avatar aesthetic color" },
+        "avatarType": { "type": "string", "enum": ["casual", "explorer", "builder", "cyber"], "description": "Avatar visual style" },
+        "position": { "type": "array", "description": "3D World coordinates [x, y, z]" },
+        "rotation": { "type": "number", "description": "Avatar orientation yaw in radians" },
+        "isMoving": { "type": "boolean", "description": "Movement state for walk animation" },
+        "lastSeen": { "type": "number", "description": "Client heartbeat timestamp in ms" },
+        "online": { "type": "boolean", "description": "Active connection presence status" },
+        "status": { "type": "string", "enum": ["online", "idle", "building"], "description": "Current player status activity" }
+      },
+      "required": ["uid", "displayName", "avatarColor", "position", "rotation", "lastSeen", "online"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Multiplayer global village broadcast text message",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string", "description": "Sender user ID" },
+        "senderName": { "type": "string", "maxLength": 30, "description": "Sender display name" },
+        "avatarColor": { "type": "string", "maxLength": 16, "description": "Sender avatar color" },
+        "text": { "type": "string", "maxLength": 160, "description": "Chat message text content" },
+        "timestamp": { "type": "number", "description": "Message creation timestamp in ms" }
+      },
+      "required": ["senderId", "senderName", "text", "timestamp"]
+    },
+    "SharedBuild": {
+      "title": "SharedBuild",
+      "description": "Community shared construction placed in 3DWorld multiplayer space",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique building ID" },
+        "ownerId": { "type": "string", "description": "Creator user ID" },
+        "ownerName": { "type": "string", "maxLength": 30, "description": "Creator display name" },
+        "typeId": { "type": "string", "description": "Catalog item ID" },
+        "position": { "type": "array", "description": "World space position [x, y, z]" },
+        "rotation": { "type": "number", "description": "Y-axis rotation in radians" },
+        "cost": { "type": "number", "description": "Virtual cost" },
+        "createdAt": { "type": "number", "description": "Creation timestamp in ms" }
+      },
+      "required": ["id", "ownerId", "ownerName", "typeId", "position", "rotation", "cost", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/players/{playerId}": {
+      "schema": "Player",
+      "description": "Active online player presences and avatars"
+    },
+    "/messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Public chat messages with rate and length limits"
+    },
+    "/shared_builds/{buildId}": {
+      "schema": "SharedBuild",
+      "description": "Shared community structures with owner authorization"
+    }
+  }
+}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Compass, Volume2, VolumeX, Sun, Moon, Sunrise, Sunset, Info, Eye, Hammer } from 'lucide-react';
+import { Compass, Volume2, VolumeX, Sun, Moon, Sunrise, Sunset, Info, Eye, Hammer, Users } from 'lucide-react';
 import { LightingMode } from '../types';
 
 interface NavbarProps {
@@ -9,6 +9,9 @@ interface NavbarProps {
   onAboutClick: () => void;
   isBuildMode?: boolean;
   onToggleBuildMode?: () => void;
+  isMultiplayerActive?: boolean;
+  onToggleMultiplayer?: () => void;
+  multiplayerPlayerCount?: number;
   lightingMode: LightingMode;
   onCycleLighting: () => void;
   soundEnabled: boolean;
@@ -26,6 +29,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onAboutClick,
   isBuildMode = false,
   onToggleBuildMode,
+  isMultiplayerActive = false,
+  onToggleMultiplayer,
+  multiplayerPlayerCount = 1,
   lightingMode,
   onCycleLighting,
   soundEnabled,
@@ -131,6 +137,20 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span>{isBuildMode ? 'Building' : 'Build Mode'}</span>
           </button>
         )}
+        {onToggleMultiplayer && (
+          <button
+            onClick={onToggleMultiplayer}
+            aria-label="Multiplayer Online Village World"
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+              isMultiplayerActive
+                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-400/30 font-bold'
+                : 'text-emerald-300 hover:text-emerald-200 hover:bg-emerald-950/40 border border-emerald-400/30'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>{isMultiplayerActive ? `Online (${multiplayerPlayerCount})` : 'Multiplayer'}</span>
+          </button>
+        )}
         <button
           onClick={onDiscoverClick}
           aria-label="Discover 3DWorld Districts and Buildings (Town Center, Residential, Central Park, Botanical Garden, Lake District)"
@@ -151,6 +171,21 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Quick controls: Build mode toggle on mobile, Lighting mode, Sound toggle, Cinema */}
       <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2">
+        {onToggleMultiplayer && (
+          <button
+            onClick={onToggleMultiplayer}
+            title={isMultiplayerActive ? 'Multiplayer Online' : 'Enter Multiplayer Village'}
+            aria-label="Toggle Multiplayer"
+            className={`md:hidden flex items-center gap-1 px-2.5 py-1.5 rounded-full glass-panel border transition-all cursor-pointer text-xs font-semibold ${
+              isMultiplayerActive
+                ? 'bg-emerald-400 text-slate-950 border-emerald-300 shadow-sm'
+                : 'border-emerald-400/40 text-emerald-300 hover:text-white'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>{isMultiplayerActive ? `${multiplayerPlayerCount}` : 'Online'}</span>
+          </button>
+        )}
         {onToggleBuildMode && (
           <button
             onClick={onToggleBuildMode}
