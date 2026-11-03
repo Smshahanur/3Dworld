@@ -8,7 +8,9 @@ import { createAtmosphericClouds } from './clouds';
 import { createParticleSystems } from './particles';
 import { LivingWorldManager } from './livingWorld';
 import { DayNightCycleController, InterpolatedLightState } from './dayNightCycle';
-import { LightingMode, LOCATIONS, LocationData, BUILDINGS, BuildingInfo, ViewMode } from '../types';
+import { LightingMode, LOCATIONS, LocationData, BUILDINGS, BuildingInfo, ViewMode, GraphicsQuality, SimulationSpeed } from '../types';
+import { ConstructionManager } from '../builder/constructionManager';
+import { CustomPlacedObject } from '../builder/types';
 
 export interface SceneManagerOptions {
   container: HTMLDivElement;
@@ -17,6 +19,9 @@ export interface SceneManagerOptions {
   onHoverLandmark: (name: string | null) => void;
   onLoadingComplete: () => void;
   onTimeChange?: (timeStr: string, hour: number, mode: LightingMode) => void;
+  onBuildStateChange?: () => void;
+  onBudgetChange?: (balance: number) => void;
+  onSelectCustomObject?: (object: CustomPlacedObject | null) => void;
 }
 
 export class SceneManager {
@@ -28,6 +33,8 @@ export class SceneManager {
   private materials!: MaterialLibrary;
   private animComponents!: AnimatedLandmarkComponents;
   private livingWorld!: LivingWorldManager;
+  public construction!: ConstructionManager;
+  public isBuildMode: boolean = false;
   private dayNight = new DayNightCycleController(12.0, true);
   private skyUniforms!: {
     topColor: { value: THREE.Color };
@@ -89,6 +96,10 @@ export class SceneManager {
   private reqId: number = 0;
   public isSoftwareGl: boolean = false;
 
+  private onBuildStateChange?: () => void;
+  private onBudgetChange?: (balance: number) => void;
+  private onSelectCustomObject?: (object: CustomPlacedObject | null) => void;
+
   constructor(options: SceneManagerOptions) {
     this.container = options.container;
     this.onSelectLandmark = options.onSelectLandmark;
@@ -96,8 +107,19 @@ export class SceneManager {
     this.onHoverLandmark = options.onHoverLandmark;
     this.onLoadingComplete = options.onLoadingComplete;
     this.onTimeChange = options.onTimeChange;
+    this.onBuildStateChange = options.onBuildStateChange;
+    this.onBudgetChange = options.onBudgetChange;
+    this.onSelectCustomObject = options.onSelectCustomObject;
 
     this.init();
+  }
+
+  public setBuildMode(enabled: boolean) {
+    this.isBuildMode = enabled;
+    if (!enabled) {
+      this.construction?.cancelPlacement();
+      this.construction?.selectPlacedObject(null);
+    }
   }
 
   /**
@@ -262,6 +284,20 @@ export class SceneManager {
       }
     });
     this.scene.add(this.livingWorld.group);
+
+    // 12. Construction Manager (Village Builder System)
+    this.construction = new ConstructionManager({
+      scene: this.scene,
+      materials: this.materials,
+      isSoftwareGl: this.isSoftwareGl,
+      onStateChange: () => {
+        this.onBuildStateChange?.();
+        if (this.onSelectCustomObject) {
+          this.onSelectCustomObject(this.construction.getSelectedObjectData());
+        }
+      },
+      onBudgetChange: (b) => this.onBudgetChange?.(b),
+    });
 
     // Set initial Day atmosphere
     this.setLightingMode('day');
@@ -499,6 +535,63 @@ export class SceneManager {
     }
   }
 
+  public setTrafficActive(active: boolean) {
+    if (this.livingWorld) {
+      this.livingWorld.setTrafficActive(active);
+    }
+  }
+
+  public setPedestriansActive(active: boolean) {
+    if (this.livingWorld) {
+      this.livingWorld.setPedestriansActive(active);
+    }
+  }
+
+  public setEnvironmentAnimationActive(active: boolean) {
+    if (this.livingWorld) {
+      this.livingWorld.setEnvironmentAnimationActive(active);
+    }
+  }
+
+  public setSimulationSpeed(speed: SimulationSpeed | number) {
+    if (this.livingWorld) {
+      this.livingWorld.setSimulationSpeed(speed);
+    }
+  }
+
+  public resetSimulation() {
+    if (this.livingWorld) {
+      this.livingWorld.resetSimulation();
+    }
+  }
+
+  public setGraphicsQuality(quality: GraphicsQuality) {
+    if (this.livingWorld) {
+      this.livingWorld.setQuality(quality);
+    }
+
+    if (!this.renderer || !this.dirLight) return;
+
+    if (quality === 'low') {
+      this.renderer.shadowMap.enabled = false;
+      this.dirLight.castShadow = false;
+      this.renderer.setPixelRatio(1.0);
+    } else if (quality === 'medium') {
+      this.renderer.shadowMap.enabled = !this.isSoftwareGl;
+      this.dirLight.castShadow = !this.isSoftwareGl;
+      this.dirLight.shadow.mapSize.width = 1024;
+      this.dirLight.shadow.mapSize.height = 1024;
+      this.renderer.setPixelRatio(this.isSoftwareGl ? 1 : Math.min(window.devicePixelRatio, 1.5));
+    } else {
+      // High
+      this.renderer.shadowMap.enabled = !this.isSoftwareGl;
+      this.dirLight.castShadow = !this.isSoftwareGl;
+      this.dirLight.shadow.mapSize.width = 2048;
+      this.dirLight.shadow.mapSize.height = 2048;
+      this.renderer.setPixelRatio(this.isSoftwareGl ? 1 : Math.min(window.devicePixelRatio, 2.0));
+    }
+  }
+
   public setEcoMode(eco: boolean) {
     if (this.livingWorld) {
       this.livingWorld.setEcoMode(eco);
@@ -562,13 +655,92 @@ export class SceneManager {
 
   private setupEvents() {
     window.addEventListener('resize', this.onResize);
+    window.addEventListener('keydown', this.onKeyDown);
     const el = this.renderer.domElement;
     el.addEventListener('pointerdown', this.onPointerDown);
     el.addEventListener('pointermove', this.onPointerMove);
     el.addEventListener('pointerup', this.onPointerUp);
 
+    el.addEventListener('webglcontextlost', this.onContextLost, false);
+    el.addEventListener('webglcontextrestored', this.onContextRestored, false);
+
     document.addEventListener('visibilitychange', this.onVisibilityChange);
   }
+
+  private onContextLost = (e: Event) => {
+    e.preventDefault();
+    cancelAnimationFrame(this.reqId);
+  };
+
+  private onContextRestored = () => {
+    this.startLoop();
+  };
+
+  private onKeyDown = (e: KeyboardEvent) => {
+    if (this.isBuildMode && this.construction) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      if (e.key === 'r' || e.key === 'R' || e.key === 'e' || e.key === 'E') {
+        if (this.construction.getActiveCatalogItem()) {
+          this.construction.rotatePreview(45);
+        } else if (this.construction.getSelectedObjectId()) {
+          this.construction.rotateSelectedObject(45);
+        }
+        return;
+      }
+      if (e.key === 'q' || e.key === 'Q') {
+        if (this.construction.getActiveCatalogItem()) {
+          this.construction.rotatePreview(-45);
+        } else if (this.construction.getSelectedObjectId()) {
+          this.construction.rotateSelectedObject(-45);
+        }
+        return;
+      }
+      if (e.key === 'Escape') {
+        this.construction.cancelPlacement();
+        this.construction.selectPlacedObject(null);
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+        if (e.shiftKey) {
+          this.construction.redo();
+        } else {
+          this.construction.undo();
+        }
+        return;
+      }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (this.construction.getSelectedObjectId()) {
+          this.construction.deleteSelectedObject();
+          return;
+        }
+      }
+    }
+
+    if (this.currentViewMode !== 'street') return;
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+    const moveStep = 1.2;
+    const forward = new THREE.Vector3();
+    this.camera.getWorldDirection(forward);
+    forward.y = 0;
+    forward.normalize();
+    const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+
+    if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') {
+      this.camera.position.addScaledVector(forward, moveStep);
+      this.controls.target.addScaledVector(forward, moveStep);
+    } else if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') {
+      this.camera.position.addScaledVector(forward, -moveStep);
+      this.controls.target.addScaledVector(forward, -moveStep);
+    } else if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') {
+      this.camera.position.addScaledVector(right, -moveStep);
+      this.controls.target.addScaledVector(right, -moveStep);
+    } else if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') {
+      this.camera.position.addScaledVector(right, moveStep);
+      this.controls.target.addScaledVector(right, moveStep);
+    }
+  };
 
   private onVisibilityChange = () => {
     if (document.hidden) {
@@ -594,6 +766,13 @@ export class SceneManager {
   private onPointerDown = (e: PointerEvent) => {
     this.isPointerDown = true;
     this.pointerDownPos.set(e.clientX, e.clientY);
+
+    // In placement mode, temporarily disable camera orbit on pointerdown so placing doesn't rotate view
+    if (this.isBuildMode && this.construction?.getActiveCatalogItem()) {
+      this.controls.enableRotate = false;
+    } else {
+      this.controls.enableRotate = true;
+    }
   };
 
   private onPointerMove = (e: PointerEvent) => {
@@ -601,8 +780,26 @@ export class SceneManager {
     this.pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     this.pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
-    // Raycast for both beacon markers and clickable buildings
     this.raycaster.setFromCamera(this.pointer, this.camera);
+
+    // Build Mode Pointer Raycasting
+    if (this.isBuildMode && this.construction) {
+      if (this.construction.getActiveCatalogItem()) {
+        this.construction.updatePointerPosition(this.raycaster);
+        this.renderer.domElement.style.cursor = 'crosshair';
+        this.onHoverLandmark(null);
+        return;
+      }
+
+      const customHitId = this.construction.raycastCustomObject(this.raycaster);
+      if (customHitId) {
+        this.renderer.domElement.style.cursor = 'pointer';
+        this.onHoverLandmark('Custom Placed Structure (Click to Edit)');
+        return;
+      }
+    }
+
+    // Raycast for both beacon markers and clickable buildings
     const allInteractive = [...this.beaconMeshes, ...this.clickableBuildingMeshes];
     const intersects = this.raycaster.intersectObjects(allInteractive, false);
 
@@ -627,11 +824,30 @@ export class SceneManager {
 
   private onPointerUp = (e: PointerEvent) => {
     this.isPointerDown = false;
+    this.controls.enableRotate = true;
     const dist = Math.hypot(e.clientX - this.pointerDownPos.x, e.clientY - this.pointerDownPos.y);
 
     // Only fire click if pointer wasn't dragged
     if (dist < 6) {
       this.raycaster.setFromCamera(this.pointer, this.camera);
+
+      // Build Mode Interaction
+      if (this.isBuildMode && this.construction) {
+        if (this.construction.getActiveCatalogItem()) {
+          // Confirm placement
+          this.construction.confirmPlacement();
+          return;
+        }
+
+        const customHitId = this.construction.raycastCustomObject(this.raycaster);
+        if (customHitId) {
+          this.construction.selectPlacedObject(customHitId);
+          return;
+        } else {
+          this.construction.selectPlacedObject(null);
+        }
+      }
+
       const allInteractive = [...this.beaconMeshes, ...this.clickableBuildingMeshes];
       const intersects = this.raycaster.intersectObjects(allInteractive, false);
 
@@ -686,27 +902,48 @@ export class SceneManager {
 
       this.controls.update();
 
+      // Guarantee camera never clips underground, below sidewalks, or inside foundation plinths
+      const minCamY = this.currentViewMode === 'street' ? 1.6 : 3.5;
+      if (this.camera.position.y < minCamY) {
+        this.camera.position.y = minCamY;
+      }
+      if (this.currentViewMode === 'street' && this.controls.target.y < 1.0) {
+        this.controls.target.y = 1.0;
+      }
+
       // Continuous Animations
       if (this.animComponents) {
-        // Grand fountain ripples & water spout pulsation
-        if (this.animComponents.fountainWater) {
-          this.animComponents.fountainWater.rotation.y = elapsed * 0.4;
-          const s = 1 + Math.sin(elapsed * 3.5) * 0.02;
-          this.animComponents.fountainWater.scale.set(s, 1, s);
-        }
-        if (this.animComponents.fountainSpout) {
-          this.animComponents.fountainSpout.scale.y = 1 + Math.sin(elapsed * 4) * 0.15;
-        }
+        const isEnvAnim = this.livingWorld?.getEnvironmentAnimationActive() ?? true;
+        if (isEnvAnim) {
+          // Grand fountain ripples & water spout pulsation
+          if (this.animComponents.fountainWater) {
+            this.animComponents.fountainWater.rotation.y = elapsed * 0.4;
+            const s = 1 + Math.sin(elapsed * 3.5) * 0.02;
+            this.animComponents.fountainWater.scale.set(s, 1, s);
+          }
+          if (this.animComponents.fountainSpout) {
+            this.animComponents.fountainSpout.scale.y = 1 + Math.sin(elapsed * 4) * 0.15;
+          }
 
-        // Playground swing gentle pendulum sway
-        if (this.animComponents.playgroundSwing) {
-          this.animComponents.playgroundSwing.rotation.x = Math.sin(elapsed * 1.8) * 0.28;
-        }
+          // Playground swing gentle pendulum sway
+          if (this.animComponents.playgroundSwing) {
+            this.animComponents.playgroundSwing.rotation.x = Math.sin(elapsed * 1.8) * 0.28;
+          }
 
-        // Moored rowboat gentle bobbing on lake
-        if (this.animComponents.mooredRowboat) {
-          this.animComponents.mooredRowboat.position.y = -0.15 + Math.sin(elapsed * 2.2) * 0.04;
-          this.animComponents.mooredRowboat.rotation.z = Math.sin(elapsed * 1.6) * 0.05;
+          // Moored rowboat gentle bobbing on lake
+          if (this.animComponents.mooredRowboat) {
+            this.animComponents.mooredRowboat.position.y = -0.15 + Math.sin(elapsed * 2.2) * 0.04;
+            this.animComponents.mooredRowboat.rotation.z = Math.sin(elapsed * 1.6) * 0.05;
+          }
+
+          // Wind sway on parkland, garden & avenue trees
+          if (this.animComponents.foliageWindGroup) {
+            const trees = this.animComponents.foliageWindGroup.children;
+            for (let t = 0; t < trees.length; t++) {
+              trees[t].rotation.z = Math.sin(elapsed * 1.5 + t * 0.45) * 0.022;
+              trees[t].rotation.x = Math.cos(elapsed * 1.2 + t * 0.35) * 0.015;
+            }
+          }
         }
 
         // Floating interactive beacon markers bounce & rotation
@@ -766,6 +1003,7 @@ export class SceneManager {
     cancelAnimationFrame(this.reqId);
 
     window.removeEventListener('resize', this.onResize);
+    window.removeEventListener('keydown', this.onKeyDown);
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
 
     const el = this.renderer?.domElement;
@@ -773,8 +1011,11 @@ export class SceneManager {
       el.removeEventListener('pointerdown', this.onPointerDown);
       el.removeEventListener('pointermove', this.onPointerMove);
       el.removeEventListener('pointerup', this.onPointerUp);
+      el.removeEventListener('webglcontextlost', this.onContextLost);
+      el.removeEventListener('webglcontextrestored', this.onContextRestored);
     }
 
+    this.construction?.dispose();
     this.livingWorld?.dispose();
     this.controls?.dispose();
     this.renderer?.dispose();

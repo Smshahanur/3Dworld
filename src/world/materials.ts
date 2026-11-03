@@ -240,6 +240,7 @@ export interface MaterialLibrary {
   carPaintBlue: THREE.MeshStandardMaterial;
   carPaintRed: THREE.MeshStandardMaterial;
   carPaintGrey: THREE.MeshStandardMaterial;
+  carPaintEmerald: THREE.MeshStandardMaterial;
   carTireRubber: THREE.MeshStandardMaterial;
   carGlass: THREE.MeshStandardMaterial;
   lampGlow: THREE.MeshBasicMaterial;
@@ -251,9 +252,12 @@ export interface MaterialLibrary {
   sportCourtOrange: THREE.MeshStandardMaterial;
   medicalCrossRed: THREE.MeshStandardMaterial;
 
-  // Vehicle Headlights & Taillights
+  // Vehicle Headlights, Taillights & Signals
   headlightGlow: THREE.MeshBasicMaterial;
   taillightGlow: THREE.MeshBasicMaterial;
+  turnSignalGlow: THREE.MeshBasicMaterial;
+  emergencyRedGlow: THREE.MeshBasicMaterial;
+  emergencyBlueGlow: THREE.MeshBasicMaterial;
 
   // Pedestrian Figurines
   pedestrianShirt1: THREE.MeshStandardMaterial;
@@ -550,6 +554,12 @@ export function createMaterialLibrary(isSoftwareGl: boolean): MaterialLibrary {
     metalness: 0.78,
   });
 
+  const carPaintEmerald = new THREE.MeshStandardMaterial({
+    color: 0x059669,
+    roughness: 0.2,
+    metalness: 0.75,
+  });
+
   const carTireRubber = new THREE.MeshStandardMaterial({
     color: 0x111827,
     roughness: 0.92,
@@ -597,13 +607,25 @@ export function createMaterialLibrary(isSoftwareGl: boolean): MaterialLibrary {
     emissiveIntensity: 0.4,
   });
 
-  // Vehicle Headlights & Taillights
+  // Vehicle Headlights, Taillights & Dynamic Turn/Emergency Signals
   const headlightGlow = new THREE.MeshBasicMaterial({
     color: 0xfffbeb,
   });
 
   const taillightGlow = new THREE.MeshBasicMaterial({
     color: 0xef4444,
+  });
+
+  const turnSignalGlow = new THREE.MeshBasicMaterial({
+    color: 0xf59e0b,
+  });
+
+  const emergencyRedGlow = new THREE.MeshBasicMaterial({
+    color: 0xef4444,
+  });
+
+  const emergencyBlueGlow = new THREE.MeshBasicMaterial({
+    color: 0x3b82f6,
   });
 
   // Pedestrian Clothing & Figurines
@@ -669,6 +691,7 @@ export function createMaterialLibrary(isSoftwareGl: boolean): MaterialLibrary {
     carPaintBlue,
     carPaintRed,
     carPaintGrey,
+    carPaintEmerald,
     carTireRubber,
     carGlass,
     lampGlow,
@@ -679,6 +702,9 @@ export function createMaterialLibrary(isSoftwareGl: boolean): MaterialLibrary {
     medicalCrossRed,
     headlightGlow,
     taillightGlow,
+    turnSignalGlow,
+    emergencyRedGlow,
+    emergencyBlueGlow,
     pedestrianShirt1,
     pedestrianShirt2,
     pedestrianShirt3,

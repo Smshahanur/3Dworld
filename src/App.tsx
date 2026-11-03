@@ -5,7 +5,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { SceneManager } from './world/sceneManager';
-import { LightingMode, LOCATIONS, LocationData, BuildingInfo, ViewMode, BUILDINGS } from './types';
+import { LightingMode, LOCATIONS, LocationData, BuildingInfo, ViewMode, BUILDINGS, GraphicsQuality, SimulationSpeed } from './types';
 import { soundManager } from './utils/audio';
 import { Navbar } from './components/Navbar';
 import { HeroOverlay } from './components/HeroOverlay';
@@ -14,6 +14,8 @@ import { LandmarkDetailModal } from './components/LandmarkDetailModal';
 import { BuildingInfoCard } from './components/BuildingInfoCard';
 import { DestinationBanner } from './components/DestinationBanner';
 import { BottomControlDock } from './components/BottomControlDock';
+import { BuildToolbar } from './components/BuildToolbar';
+import { CatalogItem, CustomPlacedObject } from './builder/types';
 import { AboutModal } from './components/AboutModal';
 import { Footer } from './components/Footer';
 import { LoadingScreen } from './components/LoadingScreen';
@@ -30,12 +32,47 @@ export default function App() {
   const [heroDismissed, setHeroDismissed] = useState(false);
   const [cinemaMode, setCinemaMode] = useState(false);
 
-  // World States
+  // Construction Build Mode State
+  const [isBuildMode, setIsBuildMode] = useState(false);
+  const [selectedCatalogItem, setSelectedCatalogItem] = useState<CatalogItem | null>(null);
+  const [selectedCustomObject, setSelectedCustomObject] = useState<CustomPlacedObject | null>(null);
+  const [gridSnap, setGridSnap] = useState(true);
+  const [budget, setBudget] = useState(15000);
+  const [placedCount, setPlacedCount] = useState(0);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const [validationStatus, setValidationStatus] = useState<{ isValid: boolean; reason: string }>({
+    isValid: true,
+    reason: '',
+  });
+
+  // Persistent World & Simulation Preferences
   const [lightingMode, setLightingMode] = useState<LightingMode>('day');
   const [viewMode, setViewMode] = useState<ViewMode>('aerial');
   const [autoRotate, setAutoRotate] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [simulationActive, setSimulationActive] = useState(true);
+  const [trafficActive, setTrafficActive] = useState(() => {
+    try { return localStorage.getItem('3dworld_traffic_active') !== 'false'; } catch { return true; }
+  });
+  const [pedestriansActive, setPedestriansActive] = useState(() => {
+    try { return localStorage.getItem('3dworld_pedestrians_active') !== 'false'; } catch { return true; }
+  });
+  const [envAnimationActive, setEnvAnimationActive] = useState(() => {
+    try { return localStorage.getItem('3dworld_env_anim_active') !== 'false'; } catch { return true; }
+  });
+  const [simulationSpeed, setSimulationSpeed] = useState<SimulationSpeed>(() => {
+    try {
+      const saved = parseFloat(localStorage.getItem('3dworld_sim_speed') || '1');
+      return (saved === 0.5 || saved === 1 || saved === 2 ? saved : 1) as SimulationSpeed;
+    } catch { return 1; }
+  });
+  const [graphicsQuality, setGraphicsQuality] = useState<GraphicsQuality>(() => {
+    try {
+      const saved = localStorage.getItem('3dworld_graphics_quality');
+      return (saved === 'low' || saved === 'medium' || saved === 'high' ? saved : 'medium') as GraphicsQuality;
+    } catch { return 'medium'; }
+  });
   const [ecoMode, setEcoMode] = useState(false);
   const [timeOfDay, setTimeOfDay] = useState(12.0);
   const [formattedTime, setFormattedTime] = useState('12:00 PM');
@@ -97,6 +134,18 @@ export default function App() {
         setTimeOfDay(hour);
         setLightingMode(mode);
       },
+      onBuildStateChange: () => {
+        if (!sm.construction) return;
+        setBudget(sm.construction.getBudget());
+        setPlacedCount(sm.construction.getPlacedCount());
+        setCanUndo(sm.construction.canUndo());
+        setCanRedo(sm.construction.canRedo());
+        setGridSnap(sm.construction.isGridSnapEnabled());
+        setSelectedCatalogItem(sm.construction.getActiveCatalogItem());
+        setValidationStatus(sm.construction.getValidationStatus());
+      },
+      onBudgetChange: (b) => setBudget(b),
+      onSelectCustomObject: (obj) => setSelectedCustomObject(obj),
       onLoadingComplete: () => {
         clearInterval(progressTimer);
         setLoadProgress(100);
@@ -107,6 +156,19 @@ export default function App() {
     });
 
     sceneManagerRef.current = sm;
+
+    // Apply restored simulation & quality preferences
+    sm.setTrafficActive(trafficActive);
+    sm.setPedestriansActive(pedestriansActive);
+    sm.setEnvironmentAnimationActive(envAnimationActive);
+    sm.setSimulationSpeed(simulationSpeed);
+    sm.setGraphicsQuality(graphicsQuality);
+
+    // Sync initial builder state
+    setBudget(sm.construction.getBudget());
+    setPlacedCount(sm.construction.getPlacedCount());
+    setCanUndo(sm.construction.canUndo());
+    setCanRedo(sm.construction.canRedo());
 
     return () => {
       clearInterval(progressTimer);
@@ -186,6 +248,55 @@ export default function App() {
     soundManager.playInteractSound();
   }, []);
 
+  const handleToggleTraffic = useCallback(() => {
+    setTrafficActive((prev) => {
+      const next = !prev;
+      sceneManagerRef.current?.setTrafficActive(next);
+      try { localStorage.setItem('3dworld_traffic_active', String(next)); } catch {}
+      return next;
+    });
+    soundManager.playInteractSound();
+  }, []);
+
+  const handleTogglePedestrians = useCallback(() => {
+    setPedestriansActive((prev) => {
+      const next = !prev;
+      sceneManagerRef.current?.setPedestriansActive(next);
+      try { localStorage.setItem('3dworld_pedestrians_active', String(next)); } catch {}
+      return next;
+    });
+    soundManager.playInteractSound();
+  }, []);
+
+  const handleToggleEnvAnimation = useCallback(() => {
+    setEnvAnimationActive((prev) => {
+      const next = !prev;
+      sceneManagerRef.current?.setEnvironmentAnimationActive(next);
+      try { localStorage.setItem('3dworld_env_anim_active', String(next)); } catch {}
+      return next;
+    });
+    soundManager.playInteractSound();
+  }, []);
+
+  const handleSelectSimulationSpeed = useCallback((speed: SimulationSpeed) => {
+    setSimulationSpeed(speed);
+    sceneManagerRef.current?.setSimulationSpeed(speed);
+    try { localStorage.setItem('3dworld_sim_speed', String(speed)); } catch {}
+    soundManager.playInteractSound();
+  }, []);
+
+  const handleSelectGraphicsQuality = useCallback((quality: GraphicsQuality) => {
+    setGraphicsQuality(quality);
+    sceneManagerRef.current?.setGraphicsQuality(quality);
+    try { localStorage.setItem('3dworld_graphics_quality', quality); } catch {}
+    soundManager.playInteractSound();
+  }, []);
+
+  const handleResetSimulation = useCallback(() => {
+    sceneManagerRef.current?.resetSimulation();
+    soundManager.playInteractSound();
+  }, []);
+
   // Handle Eco Mode Toggle (Low Power / Mobile Battery Saver)
   const handleToggleEcoMode = useCallback(() => {
     setEcoMode((prev) => {
@@ -230,6 +341,106 @@ export default function App() {
     soundManager.playInteractSound();
   }, []);
 
+  // Handle Construction & Build Mode Actions
+  const handleToggleBuildMode = useCallback((override?: boolean) => {
+    setIsBuildMode((prev) => {
+      const next = override !== undefined ? override : !prev;
+      sceneManagerRef.current?.setBuildMode(next);
+      if (next) {
+        setHeroDismissed(true);
+        setSelectedLandmark(null);
+        setSelectedBuilding(null);
+        setActiveLocationId(null);
+      }
+      soundManager.playInteractSound();
+      return next;
+    });
+  }, []);
+
+  const handleSelectCatalogItem = useCallback((item: CatalogItem | null) => {
+    setSelectedCatalogItem(item);
+    sceneManagerRef.current?.construction?.startPlacement(item);
+    soundManager.playInteractSound();
+  }, []);
+
+  const handleConfirmPlacement = useCallback(() => {
+    const res = sceneManagerRef.current?.construction?.confirmPlacement();
+    if (res) {
+      soundManager.playInteractSound();
+    }
+  }, []);
+
+  const handleCancelPlacement = useCallback(() => {
+    sceneManagerRef.current?.construction?.cancelPlacement();
+    setSelectedCatalogItem(null);
+    soundManager.playInteractSound();
+  }, []);
+
+  const handleRotatePreview = useCallback((deltaDeg: number) => {
+    sceneManagerRef.current?.construction?.rotatePreview(deltaDeg);
+    soundManager.playInteractSound();
+  }, []);
+
+  const handleToggleGridSnap = useCallback(() => {
+    const next = sceneManagerRef.current?.construction?.toggleGridSnap();
+    if (typeof next === 'boolean') {
+      setGridSnap(next);
+    }
+    soundManager.playInteractSound();
+  }, []);
+
+  const handleRotateSelected = useCallback((deltaDeg: number) => {
+    sceneManagerRef.current?.construction?.rotateSelected(deltaDeg);
+    soundManager.playInteractSound();
+  }, []);
+
+  const handleDuplicateSelected = useCallback(() => {
+    const dup = sceneManagerRef.current?.construction?.duplicateSelected();
+    if (dup) {
+      soundManager.playInteractSound();
+    }
+  }, []);
+
+  const handleDeleteSelected = useCallback(() => {
+    const success = sceneManagerRef.current?.construction?.deleteSelected();
+    if (success) {
+      soundManager.playInteractSound();
+    }
+  }, []);
+
+  const handleDeselectCustomObject = useCallback(() => {
+    sceneManagerRef.current?.construction?.deselectObject();
+    setSelectedCustomObject(null);
+    soundManager.playInteractSound();
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    sceneManagerRef.current?.construction?.undo();
+    soundManager.playInteractSound();
+  }, []);
+
+  const handleRedo = useCallback(() => {
+    sceneManagerRef.current?.construction?.redo();
+    soundManager.playInteractSound();
+  }, []);
+
+  const handleSaveVillage = useCallback((name: string) => {
+    if (!sceneManagerRef.current?.construction) return false;
+    return sceneManagerRef.current.construction.saveToLocalStorage(name);
+  }, []);
+
+  const handleLoadVillage = useCallback(() => {
+    if (!sceneManagerRef.current?.construction) {
+      return { success: false, error: 'Construction engine not initialized' };
+    }
+    return sceneManagerRef.current.construction.loadFromLocalStorage();
+  }, []);
+
+  const handleResetVillage = useCallback(() => {
+    sceneManagerRef.current?.construction?.resetCustomVillage();
+    soundManager.playInteractSound();
+  }, []);
+
   // Handle Explore World Button (Cinematic fly-in)
   const handleExploreWorld = useCallback(() => {
     setHeroDismissed(true);
@@ -241,6 +452,11 @@ export default function App() {
   // Keyboard accessibility
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+        return;
+      }
+
       if (e.key === 'Escape') {
         setSelectedLandmark(null);
         setSelectedBuilding(null);
@@ -248,6 +464,8 @@ export default function App() {
         setIsAboutOpen(false);
       } else if (e.key.toLowerCase() === 'h' && !isDrawerOpen && !isAboutOpen && !selectedLandmark && !selectedBuilding) {
         setCinemaMode((prev) => !prev);
+      } else if (e.key.toLowerCase() === 'b' && !isDrawerOpen && !isAboutOpen) {
+        handleToggleBuildMode();
       } else if (e.key === ' ' && !isDrawerOpen && !isAboutOpen && !selectedLandmark && !selectedBuilding) {
         e.preventDefault();
         handleToggleAutoRotate();
@@ -255,7 +473,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isDrawerOpen, isAboutOpen, selectedLandmark, selectedBuilding, handleToggleAutoRotate]);
+  }, [isDrawerOpen, isAboutOpen, selectedLandmark, selectedBuilding, handleToggleAutoRotate, handleToggleBuildMode]);
 
   if (!hasWebGL) {
     return <WebGLFallback />;
@@ -335,6 +553,8 @@ export default function App() {
         onExploreClick={handleExploreWorld}
         onDiscoverClick={() => setIsDrawerOpen(true)}
         onAboutClick={() => setIsAboutOpen(true)}
+        isBuildMode={isBuildMode}
+        onToggleBuildMode={() => handleToggleBuildMode()}
         lightingMode={lightingMode}
         onCycleLighting={handleCycleLighting}
         soundEnabled={soundEnabled}
@@ -346,7 +566,7 @@ export default function App() {
       />
 
       {/* 5. Destination Banner (When visiting a specific district) */}
-      {!cinemaMode && activeLocation && !selectedBuilding && (
+      {!cinemaMode && !isBuildMode && activeLocation && !selectedBuilding && (
         <DestinationBanner
           location={activeLocation}
           onReturnToOverview={handleResetView}
@@ -355,8 +575,27 @@ export default function App() {
         />
       )}
 
+      {/* Street Exploration Quick Banner (When roaming in Street view) */}
+      {!cinemaMode && !isBuildMode && viewMode === 'street' && !activeLocation && !selectedBuilding && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-30 animate-in fade-in slide-in-from-top-2 duration-300 pointer-events-auto max-w-[92vw]">
+          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-cyan-400/40 bg-[#080d19]/90 shadow-2xl backdrop-blur-md">
+            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shrink-0" />
+            <span className="text-xs font-medium text-slate-200 truncate">
+              Street Exploration • Drag / WASD to Roam
+            </span>
+            <button
+              onClick={handleToggleViewMode}
+              className="ml-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500 hover:text-white border border-cyan-400/40 transition-all cursor-pointer whitespace-nowrap"
+              aria-label="Return to Aerial Overview"
+            >
+              Return to Aerial
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 6. Hero Intro Overlay (Full-screen hero presentation) */}
-      {!cinemaMode && (
+      {!cinemaMode && !isBuildMode && (
         <HeroOverlay
           onExploreWorld={handleExploreWorld}
           onDiscoverLocations={() => setIsDrawerOpen(true)}
@@ -367,7 +606,7 @@ export default function App() {
       )}
 
       {/* 7. Clickable Building Information Card */}
-      {!cinemaMode && (
+      {!cinemaMode && !isBuildMode && (
         <BuildingInfoCard
           building={selectedBuilding}
           onClose={() => {
@@ -379,8 +618,8 @@ export default function App() {
         />
       )}
 
-      {/* 8. Collapsible Bottom Control Dock (Zero Viewport Occlusion) */}
-      {!cinemaMode && (
+      {/* 8a. Collapsible Bottom Control Dock (Exploration & Simulation HUD) */}
+      {!cinemaMode && !isBuildMode && (
         <BottomControlDock
           onResetView={handleResetView}
           autoRotate={autoRotate}
@@ -394,8 +633,21 @@ export default function App() {
           onOpenDiscover={() => setIsDrawerOpen(true)}
           viewMode={viewMode}
           onToggleViewMode={handleToggleViewMode}
+          isBuildMode={isBuildMode}
+          onToggleBuildMode={() => handleToggleBuildMode()}
           simulationActive={simulationActive}
           onToggleSimulation={handleToggleSimulation}
+          trafficActive={trafficActive}
+          onToggleTraffic={handleToggleTraffic}
+          pedestriansActive={pedestriansActive}
+          onTogglePedestrians={handleTogglePedestrians}
+          envAnimationActive={envAnimationActive}
+          onToggleEnvAnimation={handleToggleEnvAnimation}
+          simulationSpeed={simulationSpeed}
+          onSelectSimulationSpeed={handleSelectSimulationSpeed}
+          graphicsQuality={graphicsQuality}
+          onSelectGraphicsQuality={handleSelectGraphicsQuality}
+          onResetSimulation={handleResetSimulation}
           ecoMode={ecoMode}
           onToggleEcoMode={handleToggleEcoMode}
           timeOfDay={timeOfDay}
@@ -403,6 +655,35 @@ export default function App() {
           autoDayNight={autoDayNight}
           onToggleAutoDayNight={handleToggleAutoDayNight}
           onSetTimeOfDay={handleSetTimeOfDay}
+        />
+      )}
+
+      {/* 8b. Interactive Village Builder Construction Toolbar */}
+      {!cinemaMode && isBuildMode && (
+        <BuildToolbar
+          activeItem={selectedCatalogItem}
+          onSelectItem={handleSelectCatalogItem}
+          onConfirmPlacement={handleConfirmPlacement}
+          onCancelPlacement={handleCancelPlacement}
+          onRotatePreview={handleRotatePreview}
+          gridSnap={gridSnap}
+          onToggleGridSnap={handleToggleGridSnap}
+          validationStatus={validationStatus}
+          selectedObject={selectedCustomObject}
+          onRotateSelected={handleRotateSelected}
+          onDuplicateSelected={handleDuplicateSelected}
+          onDeleteSelected={handleDeleteSelected}
+          onDeselectObject={handleDeselectCustomObject}
+          budget={budget}
+          placedCount={placedCount}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          onSaveVillage={handleSaveVillage}
+          onLoadVillage={handleLoadVillage}
+          onResetVillage={handleResetVillage}
+          onExitBuildMode={() => handleToggleBuildMode(false)}
         />
       )}
 

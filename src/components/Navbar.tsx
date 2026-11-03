@@ -1,5 +1,5 @@
 import React from 'react';
-import { Compass, Volume2, VolumeX, Sun, Moon, Sunrise, Sunset, Info, Eye } from 'lucide-react';
+import { Compass, Volume2, VolumeX, Sun, Moon, Sunrise, Sunset, Info, Eye, Hammer } from 'lucide-react';
 import { LightingMode } from '../types';
 
 interface NavbarProps {
@@ -7,6 +7,8 @@ interface NavbarProps {
   onExploreClick: () => void;
   onDiscoverClick: () => void;
   onAboutClick: () => void;
+  isBuildMode?: boolean;
+  onToggleBuildMode?: () => void;
   lightingMode: LightingMode;
   onCycleLighting: () => void;
   soundEnabled: boolean;
@@ -22,6 +24,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onExploreClick,
   onDiscoverClick,
   onAboutClick,
+  isBuildMode = false,
+  onToggleBuildMode,
   lightingMode,
   onCycleLighting,
   soundEnabled,
@@ -113,6 +117,20 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           Explore
         </button>
+        {onToggleBuildMode && (
+          <button
+            onClick={onToggleBuildMode}
+            aria-label="Toggle Interactive Village Construction Build Mode"
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+              isBuildMode
+                ? 'bg-cyan-400 text-slate-950 shadow-md shadow-cyan-400/30 font-bold'
+                : 'text-amber-300 hover:text-amber-200 hover:bg-amber-950/40 border border-amber-400/30'
+            }`}
+          >
+            <Hammer className="w-3.5 h-3.5" />
+            <span>{isBuildMode ? 'Building' : 'Build Mode'}</span>
+          </button>
+        )}
         <button
           onClick={onDiscoverClick}
           aria-label="Discover 3DWorld Districts and Buildings (Town Center, Residential, Central Park, Botanical Garden, Lake District)"
@@ -131,8 +149,23 @@ export const Navbar: React.FC<NavbarProps> = ({
         </button>
       </nav>
 
-      {/* Quick controls: Lighting mode, Sound toggle, Cinema */}
-      <div className="pointer-events-auto flex items-center gap-2">
+      {/* Quick controls: Build mode toggle on mobile, Lighting mode, Sound toggle, Cinema */}
+      <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2">
+        {onToggleBuildMode && (
+          <button
+            onClick={onToggleBuildMode}
+            title={isBuildMode ? 'Exit Build Mode' : 'Enter Village Construction Build Mode'}
+            aria-label="Toggle Build Mode"
+            className={`md:hidden flex items-center gap-1 px-2.5 py-1.5 rounded-full glass-panel border transition-all cursor-pointer text-xs font-semibold ${
+              isBuildMode
+                ? 'bg-cyan-400 text-slate-950 border-cyan-300 shadow-sm'
+                : 'border-amber-400/40 text-amber-300 hover:text-white'
+            }`}
+          >
+            <Hammer className="w-3.5 h-3.5" />
+            <span>{isBuildMode ? 'Exit' : 'Build'}</span>
+          </button>
+        )}
         {/* Lighting preset cycle button */}
         <button
           onClick={onCycleLighting}

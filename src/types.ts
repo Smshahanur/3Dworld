@@ -30,6 +30,8 @@ export interface BuildingInfo {
 
 export type LightingMode = 'day' | 'twilight' | 'cyber-night' | 'dawn';
 export type ViewMode = 'aerial' | 'street';
+export type GraphicsQuality = 'low' | 'medium' | 'high';
+export type SimulationSpeed = 0.5 | 1 | 2;
 
 export interface WorldState {
   activeLocationId: string | null;
@@ -40,6 +42,11 @@ export interface WorldState {
   cinemaMode: boolean;
   isInspecting: boolean;
   simulationActive: boolean;
+  trafficActive: boolean;
+  pedestriansActive: boolean;
+  envAnimationActive: boolean;
+  simulationSpeed: SimulationSpeed;
+  graphicsQuality: GraphicsQuality;
   ecoMode: boolean;
   selectedLandmark: LocationData | null;
   selectedBuilding: BuildingInfo | null;
