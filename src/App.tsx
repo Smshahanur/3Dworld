@@ -544,6 +544,8 @@ export default function App() {
         return;
       }
 
+      if (!e || typeof e.key !== 'string') return;
+
       if (e.key === 'Escape') {
         setSelectedLandmark(null);
         setSelectedBuilding(null);
@@ -553,6 +555,8 @@ export default function App() {
         setCinemaMode((prev) => !prev);
       } else if (e.key.toLowerCase() === 'b' && !isDrawerOpen && !isAboutOpen) {
         handleToggleBuildMode();
+      } else if (e.key.toLowerCase() === 'm' && !isDrawerOpen && !isAboutOpen && !isBuildMode) {
+        handleToggleMultiplayer();
       } else if (e.key === ' ' && !isDrawerOpen && !isAboutOpen && !selectedLandmark && !selectedBuilding) {
         e.preventDefault();
         handleToggleAutoRotate();
@@ -560,7 +564,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isDrawerOpen, isAboutOpen, selectedLandmark, selectedBuilding, handleToggleAutoRotate, handleToggleBuildMode]);
+  }, [isDrawerOpen, isAboutOpen, selectedLandmark, selectedBuilding, handleToggleAutoRotate, handleToggleBuildMode, isBuildMode, handleToggleMultiplayer]);
 
   if (!hasWebGL) {
     return <WebGLFallback />;

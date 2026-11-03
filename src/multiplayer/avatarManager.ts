@@ -328,8 +328,8 @@ export class AvatarManager {
       ctx.font = 'bold 30px system-ui, -apple-system, sans-serif';
       ctx.fillStyle = '#f8fafc';
       ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      const truncated = name.length > 15 ? name.slice(0, 14) + '…' : name;
+      const safeName = typeof name === 'string' && name.trim() ? name.trim() : 'Resident';
+      const truncated = safeName.length > 15 ? safeName.slice(0, 14) + '…' : safeName;
       ctx.fillText(truncated + (isLocal ? ' (You)' : ''), x + 58, y + h / 2);
     }
 
@@ -403,12 +403,19 @@ export class AvatarManager {
   // ---------------------------------------------------------------------------
   // 4. INPUT CONTROLS & MOVEMENT
   // ---------------------------------------------------------------------------
+  private onKeyDownHandler: ((e: KeyboardEvent) => void) | null = null;
+  private onKeyUpHandler: ((e: KeyboardEvent) => void) | null = null;
+  private onBlurHandler: (() => void) | null = null;
+
   private initKeyboardListeners() {
     if (typeof window === 'undefined') return;
 
     const keys: Record<string, boolean> = {};
 
-    window.addEventListener('keydown', (e) => {
+    this.onKeyDownHandler = (e: KeyboardEvent) => {
+      // Guard against undefined e.key (e.g. mobile virtual keyboard, IME, or synthetic events)
+      if (!e || typeof e.key !== 'string') return;
+
       // Skip if typing in an input or textarea
       const target = e.target as HTMLElement;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
@@ -417,12 +424,22 @@ export class AvatarManager {
 
       keys[e.key.toLowerCase()] = true;
       this.computeMovement(keys);
-    });
+    };
 
-    window.addEventListener('keyup', (e) => {
+    this.onKeyUpHandler = (e: KeyboardEvent) => {
+      if (!e || typeof e.key !== 'string') return;
       keys[e.key.toLowerCase()] = false;
       this.computeMovement(keys);
-    });
+    };
+
+    this.onBlurHandler = () => {
+      for (const k in keys) keys[k] = false;
+      this.computeMovement(keys);
+    };
+
+    window.addEventListener('keydown', this.onKeyDownHandler);
+    window.addEventListener('keyup', this.onKeyUpHandler);
+    window.addEventListener('blur', this.onBlurHandler);
   }
 
   private computeMovement(keys: Record<string, boolean>) {
@@ -645,6 +662,18 @@ export class AvatarManager {
   }
 
   public dispose() {
+    if (this.onKeyDownHandler) {
+      window.removeEventListener('keydown', this.onKeyDownHandler);
+      this.onKeyDownHandler = null;
+    }
+    if (this.onKeyUpHandler) {
+      window.removeEventListener('keyup', this.onKeyUpHandler);
+      this.onKeyUpHandler = null;
+    }
+    if (this.onBlurHandler) {
+      window.removeEventListener('blur', this.onBlurHandler);
+      this.onBlurHandler = null;
+    }
     if (this.remotePlayersUnsub) {
       this.remotePlayersUnsub();
       this.remotePlayersUnsub = null;

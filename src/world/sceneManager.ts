@@ -686,6 +686,7 @@ export class SceneManager {
   };
 
   private onKeyDown = (e: KeyboardEvent) => {
+    if (!e || typeof e.key !== 'string') return;
     if (this.isBuildMode && this.construction) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
