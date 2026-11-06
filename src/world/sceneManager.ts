@@ -4,15 +4,19 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { createMaterialLibrary, MaterialLibrary } from './materials';
 import { createModernVillageLandscape } from './terrain';
 import { createModernVillage, AnimatedLandmarkComponents } from './landmarks';
+import { createLivingNatureSystem, NatureSystemResult } from './natureSystem';
 import { createAtmosphericClouds } from './clouds';
 import { createParticleSystems } from './particles';
 import { LivingWorldManager } from './livingWorld';
 import { DayNightCycleController, InterpolatedLightState } from './dayNightCycle';
-import { LightingMode, LOCATIONS, LocationData, BUILDINGS, BuildingInfo, ViewMode, GraphicsQuality, SimulationSpeed } from '../types';
+import { LightingMode, LOCATIONS, LocationData, BUILDINGS, BuildingInfo, ViewMode, GraphicsQuality, SimulationSpeed, WeatherMode } from '../types';
 import { ConstructionManager } from '../builder/constructionManager';
 import { CustomPlacedObject } from '../builder/types';
 import { AvatarManager } from '../multiplayer/avatarManager';
 import { PlayerData } from '../multiplayer/types';
+import { WeatherManager } from './weather';
+import { DrivableVehicle } from './drivableVehicle';
+import { SpatialAuditSystem, SpatialAuditReport } from './spatialAuditSystem';
 
 export interface SceneManagerOptions {
   container: HTMLDivElement;
@@ -25,6 +29,8 @@ export interface SceneManagerOptions {
   onBudgetChange?: (balance: number) => void;
   onSelectCustomObject?: (object: CustomPlacedObject | null) => void;
   onSelectRemotePlayer?: (player: PlayerData) => void;
+  onDriveStateChange?: (driving: boolean) => void;
+  onVehicleSpeedChange?: (speed: number, gear: 'D' | 'R' | 'P') => void;
 }
 
 export class SceneManager {
@@ -38,6 +44,11 @@ export class SceneManager {
   private livingWorld!: LivingWorldManager;
   public construction!: ConstructionManager;
   public avatars!: AvatarManager;
+  public weather!: WeatherManager;
+  public vehicle!: DrivableVehicle;
+  public spatialAuditor!: SpatialAuditSystem;
+  public onDriveStateChange?: (driving: boolean) => void;
+  public onVehicleSpeedChange?: (speed: number, gear: 'D' | 'R' | 'P') => void;
   public isBuildMode: boolean = false;
   private dayNight = new DayNightCycleController(12.0, true);
   private skyUniforms!: {
@@ -59,6 +70,7 @@ export class SceneManager {
   private midClouds!: THREE.Group;
   private landscapeGroup!: THREE.Group;
   private villageGroup!: THREE.Group;
+  private natureSystemResult!: NatureSystemResult;
   private skyDome!: THREE.Mesh;
 
   // Lights & Fog
@@ -116,6 +128,8 @@ export class SceneManager {
     this.onBudgetChange = options.onBudgetChange;
     this.onSelectCustomObject = options.onSelectCustomObject;
     this.onSelectRemotePlayer = options.onSelectRemotePlayer;
+    this.onDriveStateChange = options.onDriveStateChange;
+    this.onVehicleSpeedChange = options.onVehicleSpeedChange;
 
     this.init();
   }
@@ -221,8 +235,8 @@ export class SceneManager {
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.06;
     this.controls.target.copy(initialView.target);
-    this.controls.maxDistance = 185;
-    this.controls.minDistance = 8;
+    this.controls.maxDistance = 280;
+    this.controls.minDistance = 6;
     this.controls.maxPolarAngle = Math.PI / 2 - 0.05; // Prevent camera from dipping beneath ground
     this.controls.minPolarAngle = 0.15;
     this.controls.touches = {
@@ -263,6 +277,10 @@ export class SceneManager {
     this.clickableBuildingMeshes = villageResult.clickableBuildingMeshes;
     this.villageGroup = villageResult.villageGroup;
     this.scene.add(this.villageGroup);
+
+    // Living Nature & River System (Riverbanks, Playgrounds, Botanical Themed Gardens, Sports Complex, Flocks of Birds)
+    this.natureSystemResult = createLivingNatureSystem(this.materials);
+    this.scene.add(this.natureSystemResult.natureGroup);
 
     // 10. Building Selection Highlight Marker (Subtle glowing 3D bracket & ring)
     this.setupSelectionHighlight();
@@ -307,6 +325,57 @@ export class SceneManager {
 
     // 13. Multiplayer Avatars Manager
     this.avatars = new AvatarManager(this.scene, this.camera, this.materials, this.isSoftwareGl);
+
+    // 14. Weather System (Subtle particles: Rain, Snow, Fog)
+    this.weather = new WeatherManager(this.scene, isMobile);
+
+    // 15. Drivable Electric Vehicle (Town Center Roadster)
+    this.vehicle = new DrivableVehicle(this.scene, this.camera, this.materials);
+    // 16. Authoritative Spatial Audit & Diagnostic Overlay System
+    this.spatialAuditor = new SpatialAuditSystem(this.scene);
+    this.vehicle.onSpeedChange = (speed, gear) => {
+      this.onVehicleSpeedChange?.(speed, gear);
+    };
+    this.vehicle.onStateChange = (driving) => {
+      this.onDriveStateChange?.(driving);
+      this.controls.enabled = !driving;
+      if (driving) {
+        this.avatars?.setEnabled(false);
+        this.avatars?.setFollowCamera(false);
+        const localGrp = this.avatars?.getLocalAvatarGroup();
+        if (localGrp) localGrp.visible = false;
+      } else {
+        this.avatars?.setEnabled(true);
+        const localGrp = this.avatars?.getLocalAvatarGroup();
+        if (localGrp) localGrp.visible = true;
+      }
+    };
+    this.vehicle.onExitSafePosition = (safePos) => {
+      const yaw = this.vehicle?.getYaw() ?? 0;
+      if (this.avatars) {
+        this.avatars.setEnabled(true);
+        if (!this.avatars.getLocalAvatarGroup()) {
+          // If no local avatar mesh exists yet, spawn resident explorer avatar beside car
+          this.avatars.spawnLocalAvatar('Resident', 'cyan', 'explorer', [safePos.x, 0.22, safePos.z]);
+        } else {
+          this.avatars.setLocalPosition(safePos.x, 0.22, safePos.z, yaw);
+        }
+      }
+
+      // Smoothly restore OrbitControls target and camera framing beside the parked EV
+      this.controls.enabled = true;
+      this.controls.target.set(safePos.x, 1.4, safePos.z);
+
+      const camDist = 6.8;
+      const camHeight = 3.6;
+      this.camera.position.set(
+        safePos.x - Math.sin(yaw) * camDist,
+        0.22 + camHeight,
+        safePos.z - Math.cos(yaw) * camDist
+      );
+      this.camera.lookAt(safePos.x, 1.4, safePos.z);
+      this.controls.update();
+    };
 
     // Set initial Day atmosphere
     this.setLightingMode('day');
@@ -400,8 +469,8 @@ export class SceneManager {
       this.flyTo([-14, 2.4, 14], [-14, 1.8, 0], 1.8);
     } else {
       // Reset back to wide aerial overview
-      this.controls.minDistance = 8;
-      this.controls.maxDistance = 185;
+      this.controls.minDistance = 6;
+      this.controls.maxDistance = 280;
       this.resetView();
     }
   }
@@ -414,8 +483,8 @@ export class SceneManager {
     this.dirLight.shadow.mapSize.width = 1024;
     this.dirLight.shadow.mapSize.height = 1024;
     this.dirLight.shadow.camera.near = 2;
-    this.dirLight.shadow.camera.far = 180;
-    const d = 75;
+    this.dirLight.shadow.camera.far = 280;
+    const d = 135;
     this.dirLight.shadow.camera.left = -d;
     this.dirLight.shadow.camera.right = d;
     this.dirLight.shadow.camera.top = d;
@@ -665,6 +734,7 @@ export class SceneManager {
   private setupEvents() {
     window.addEventListener('resize', this.onResize);
     window.addEventListener('keydown', this.onKeyDown);
+    window.addEventListener('keyup', this.onKeyUp);
     const el = this.renderer.domElement;
     el.addEventListener('pointerdown', this.onPointerDown);
     el.addEventListener('pointermove', this.onPointerMove);
@@ -685,8 +755,63 @@ export class SceneManager {
     this.startLoop();
   };
 
+  private onKeyUp = (e: KeyboardEvent) => {
+    if (!e || typeof e.key !== 'string') return;
+    if (this.vehicle?.getIsDriving()) {
+      if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp' || e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') {
+        this.vehicle.setThrottle(0);
+      }
+      if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft' || e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') {
+        this.vehicle.setSteer(0);
+      }
+      if (e.key === ' ') {
+        this.vehicle.setBraking(false);
+      }
+    }
+  };
+
   private onKeyDown = (e: KeyboardEvent) => {
     if (!e || typeof e.key !== 'string') return;
+
+    // Developer Diagnostic Shortcut: Shift + D toggles Spatial Debug Wireframes
+    if (e.shiftKey && (e.key === 'D' || e.key === 'd')) {
+      if (!(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+        this.toggleSpatialDebug();
+        return;
+      }
+    }
+
+    // Handle Driving Controls
+    if (this.vehicle?.getIsDriving()) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      if (e.key === 'Escape' || e.key === 'e' || e.key === 'E') {
+        this.stopDriving();
+        return;
+      }
+      if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') {
+        this.vehicle.setThrottle(1);
+        return;
+      }
+      if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') {
+        this.vehicle.setThrottle(-1);
+        return;
+      }
+      if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') {
+        this.vehicle.setSteer(1);
+        return;
+      }
+      if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') {
+        this.vehicle.setSteer(-1);
+        return;
+      }
+      if (e.key === ' ') {
+        e.preventDefault();
+        this.vehicle.setBraking(true);
+        return;
+      }
+    }
+
     if (this.isBuildMode && this.construction) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
@@ -867,6 +992,15 @@ export class SceneManager {
         }
       }
 
+      // Check if drivable vehicle was clicked
+      if (!this.isBuildMode && this.vehicle && !this.vehicle.getIsDriving()) {
+        const vehicleHits = this.raycaster.intersectObject(this.vehicle.getGroup(), true);
+        if (vehicleHits.length > 0) {
+          this.startDriving();
+          return;
+        }
+      }
+
       const allInteractive = [...this.beaconMeshes, ...this.clickableBuildingMeshes];
       const intersects = this.raycaster.intersectObjects(allInteractive, false);
 
@@ -919,15 +1053,17 @@ export class SceneManager {
         this.controls.target.lerpVectors(this.lookStart, this.lookTarget, ease);
       }
 
-      this.controls.update();
+      if (!this.vehicle?.getIsDriving()) {
+        this.controls.update();
 
-      // Guarantee camera never clips underground, below sidewalks, or inside foundation plinths
-      const minCamY = this.currentViewMode === 'street' ? 1.6 : 3.5;
-      if (this.camera.position.y < minCamY) {
-        this.camera.position.y = minCamY;
-      }
-      if (this.currentViewMode === 'street' && this.controls.target.y < 1.0) {
-        this.controls.target.y = 1.0;
+        // Guarantee camera never clips underground, below sidewalks, or inside foundation plinths
+        const minCamY = this.currentViewMode === 'street' ? 1.6 : 3.5;
+        if (this.camera.position.y < minCamY) {
+          this.camera.position.y = minCamY;
+        }
+        if (this.currentViewMode === 'street' && this.controls.target.y < 1.0) {
+          this.controls.target.y = 1.0;
+        }
       }
 
       // Continuous Animations
@@ -947,6 +1083,17 @@ export class SceneManager {
           // Playground swing gentle pendulum sway
           if (this.animComponents.playgroundSwing) {
             this.animComponents.playgroundSwing.rotation.x = Math.sin(elapsed * 1.8) * 0.28;
+          }
+
+          // Playground seesaw tilting animation
+          if (this.animComponents.playgroundSeesaw) {
+            this.animComponents.playgroundSeesaw.rotation.z = Math.sin(elapsed * 1.6) * 0.16;
+          }
+
+          // Shimmering continuous river and lake water ripple flow
+          if (this.materials.waterRippleTexture) {
+            this.materials.waterRippleTexture.offset.y = (elapsed * 0.04) % 1;
+            this.materials.waterRippleTexture.offset.x = (elapsed * 0.015) % 1;
           }
 
           // Moored rowboat gentle bobbing on lake
@@ -975,6 +1122,11 @@ export class SceneManager {
         }
       }
 
+      // Update Living Nature environmental animations (soaring birds, river reeds sway, swings, seesaws)
+      if (this.natureSystemResult) {
+        this.natureSystemResult.updateAnimation(elapsed, delta);
+      }
+
       // Building selection highlight pulse animation
       if (this.selectionHighlightGroup && this.selectionHighlightGroup.visible) {
         this.selectionHighlightGroup.rotation.y = elapsed * 0.8;
@@ -982,7 +1134,28 @@ export class SceneManager {
 
       // Update living world simulation (vehicles, pedestrians, streetlights, waves)
       if (this.livingWorld) {
+        if (this.vehicle) {
+          this.livingWorld.setPlayerVehicle(
+            this.vehicle.getIsDriving() ? this.vehicle.getPosition() : null,
+            1.35
+          );
+        }
         this.livingWorld.update(delta, elapsed);
+      }
+
+      // Update weather system (rain streaks, snowflakes, fog atmospheric transitions)
+      if (this.weather) {
+        const isEnvAnim = this.livingWorld?.getEnvironmentAnimationActive() ?? true;
+        this.weather.setAnimationActive(isEnvAnim);
+        this.weather.update(delta, elapsed);
+      }
+
+      // Update drivable vehicle physics & chase camera
+      if (this.vehicle) {
+        if (this.livingWorld) {
+          this.vehicle.trafficObstacles = this.livingWorld.getTrafficObstacles();
+        }
+        this.vehicle.update(delta, elapsed);
       }
 
       // Update multiplayer avatars (local avatar walking & remote players smooth interpolation)
@@ -1022,12 +1195,98 @@ export class SceneManager {
     this.reqId = requestAnimationFrame(render);
   }
 
+  // --- Weather & Driving Controls ---
+
+  public setWeather(mode: WeatherMode) {
+    this.weather?.setWeather(mode);
+  }
+
+  public startDriving() {
+    if (this.isBuildMode) return;
+    this.selectedBuildingId = null;
+    this.selectionHighlightGroup.visible = false;
+    this.controls.enabled = false;
+    if (this.avatars) {
+      this.avatars.setEnabled(false);
+      this.avatars.setFollowCamera(false);
+      const localGrp = this.avatars.getLocalAvatarGroup();
+      if (localGrp) localGrp.visible = false;
+    }
+    this.vehicle?.enter();
+    this.onDriveStateChange?.(true);
+  }
+
+  public stopDriving() {
+    this.vehicle?.exit();
+  }
+
+  public resetVehicle() {
+    this.vehicle?.resetToSpawn();
+  }
+
+  public getVehicleDiagnostics() {
+    return this.vehicle?.getDiagnostics();
+  }
+
+  public getIsDriving(): boolean {
+    return this.vehicle?.getIsDriving() ?? false;
+  }
+
+  public getNavPositions(): {
+    playerPos: { x: number; z: number; yaw: number } | null;
+    vehiclePos: { x: number; z: number; yaw: number };
+    isDriving: boolean;
+  } {
+    const vPos = this.vehicle?.getPosition() || new THREE.Vector3(-22, 0.12, -2);
+    const vYaw = this.vehicle?.getYaw() ?? Math.PI / 2;
+    const isDriving = this.vehicle?.getIsDriving() ?? false;
+
+    let playerPos: { x: number; z: number; yaw: number } | null = null;
+    const localAvatar = this.avatars?.getLocalAvatarPosition();
+    if (localAvatar) {
+      playerPos = {
+        x: localAvatar.x,
+        z: localAvatar.z,
+        yaw: localAvatar.rotation,
+      };
+    } else if (!isDriving) {
+      playerPos = {
+        x: this.controls?.target.x ?? 0,
+        z: this.controls?.target.z ?? 0,
+        yaw: 0,
+      };
+    }
+
+    return {
+      playerPos,
+      vehiclePos: { x: vPos.x, z: vPos.z, yaw: vYaw },
+      isDriving,
+    };
+  }
+
+  public toggleSpatialDebug(): boolean {
+    return this.spatialAuditor?.toggle() ?? false;
+  }
+
+  public setSpatialDebugVisible(visible: boolean) {
+    this.spatialAuditor?.setVisible(visible);
+  }
+
+  public getSpatialDebugVisible(): boolean {
+    return this.spatialAuditor?.getIsVisible() ?? false;
+  }
+
+  public getSpatialAuditReport(): SpatialAuditReport | null {
+    return this.spatialAuditor?.runAudit() ?? null;
+  }
+
   public dispose() {
     this.isDisposed = true;
     cancelAnimationFrame(this.reqId);
 
     window.removeEventListener('resize', this.onResize);
     window.removeEventListener('keydown', this.onKeyDown);
+    window.removeEventListener('keyup', this.onKeyUp);
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
 
     const el = this.renderer?.domElement;
@@ -1039,9 +1298,15 @@ export class SceneManager {
       el.removeEventListener('webglcontextrestored', this.onContextRestored);
     }
 
+    this.spatialAuditor?.dispose();
+    this.weather?.dispose();
+    this.vehicle?.dispose();
     this.construction?.dispose();
     this.avatars?.dispose();
     this.livingWorld?.dispose();
+    if (this.natureSystemResult) {
+      this.scene.remove(this.natureSystemResult.natureGroup);
+    }
     this.controls?.dispose();
     this.renderer?.dispose();
 
@@ -1050,3 +1315,4 @@ export class SceneManager {
     }
   }
 }
+

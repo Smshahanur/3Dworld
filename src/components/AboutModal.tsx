@@ -1,134 +1,114 @@
 import React from 'react';
-import { X, Sparkles, Box, Cpu, Eye, ShieldCheck, ArrowLeft, Globe } from 'lucide-react';
+import { X, ArrowLeft, Instagram, Sparkles } from 'lucide-react';
 
 interface AboutModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialTab?: 'creator' | 'project';
 }
 
-export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
+export const AboutModal: React.FC<AboutModalProps> = ({
+  isOpen,
+  onClose,
+}) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
       {/* Backdrop */}
       <div
         onClick={onClose}
-        className="absolute inset-0 bg-black/60 pointer-events-auto backdrop-blur-[3px] transition-opacity"
+        className="absolute inset-0 bg-black/70 pointer-events-auto backdrop-blur-sm transition-opacity"
+        aria-hidden="true"
       />
 
-      {/* Modal Dialog */}
+      {/* Modal Dialog Container */}
       <section
-        id="about"
+        id="about-creator"
         role="dialog"
-        aria-labelledby="about-title"
+        aria-labelledby="creator-title"
         aria-modal="true"
-        className="relative pointer-events-auto w-full max-w-2xl bg-[#090e1a]/95 border border-white/15 rounded-2xl shadow-2xl p-6 sm:p-8 overflow-y-auto max-h-[90vh] text-left"
+        className="relative pointer-events-auto w-full max-w-lg overflow-hidden rounded-3xl bg-gradient-to-b from-[#f0fdf9] via-[#ecfdf5] to-[#f4fdf8] border border-[#2dd4bf]/40 shadow-2xl shadow-teal-950/20 p-6 sm:p-8 text-center animate-in zoom-in-95 duration-200"
       >
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4 pb-5 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 via-indigo-500 to-purple-500 p-[1.5px] shadow-lg shadow-cyan-500/20">
-              <div className="w-full h-full bg-[#060913] rounded-[10px] flex items-center justify-center">
-                <Globe className="w-5 h-5 text-cyan-300" />
-              </div>
-            </div>
-            <div>
-              <h2 id="about-title" className="font-display font-extrabold text-2xl text-white">
-                About 3DWorld
-              </h2>
-              <div className="text-xs font-mono text-cyan-400">
-                Interactive Virtual-World Experience
-              </div>
-            </div>
-          </div>
+        {/* Soft Ambient Mint Glow in Background */}
+        <div
+          aria-hidden="true"
+          className="absolute -top-12 left-1/2 -translate-x-1/2 w-56 h-56 bg-teal-300/25 rounded-full blur-3xl pointer-events-none"
+        />
 
-          <button
-            onClick={onClose}
-            aria-label="Close About 3DWorld"
-            className="p-2 rounded-xl glass-panel hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer"
+        {/* Top Close Button */}
+        <button
+          onClick={onClose}
+          aria-label="Close Creator Dialog"
+          className="absolute top-4 right-4 p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-teal-100/60 transition-colors cursor-pointer z-10"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* 1. Circular Creator Portrait with Turquoise Gradient Border */}
+        <div className="relative mx-auto mb-4 w-28 h-28 sm:w-32 sm:h-32 rounded-full p-[3px] bg-gradient-to-tr from-[#14b8a6] via-[#2dd4bf] to-[#10b981] shadow-lg shadow-teal-600/20">
+          <div className="w-full h-full rounded-full overflow-hidden bg-slate-900 ring-2 ring-white">
+            <img
+              src="/assets/aistudio/20261104_090030_5aeb97d7.jpg"
+              alt="Shahanur Mollah - Creator & Developer of 3DWorld"
+              className="w-full h-full object-cover object-[center_20%] select-none transition-transform duration-500 hover:scale-105"
+              loading="eager"
+            />
+          </div>
+          {/* Verified Creator Badge */}
+          <div
+            title="Verified Creator"
+            className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-gradient-to-tr from-teal-500 to-emerald-400 p-[1.5px] shadow-md flex items-center justify-center ring-2 ring-white"
           >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Introduction */}
-        <div className="py-5 space-y-3.5 text-sm sm:text-base text-slate-300 leading-relaxed border-b border-white/10">
-          <p>
-            <strong className="text-white font-semibold">3DWorld</strong> is an interactive virtual-world experience created by <span className="text-cyan-400 font-semibold">Shahanur Mollah</span>. Explore imaginative landscapes, floating islands, crystal formations, futuristic architecture, and immersive 3D environments.
-          </p>
-          <p className="text-slate-400 text-xs sm:text-sm">
-            Experience a spacious, modern village complete with connected neighborhoods, civic plazas, outdoor cafés, contemporary residential villas, lush public parks, botanical conservatories, and scenic lakeside promenades.
-          </p>
-          <p className="text-slate-400 text-xs sm:text-sm">
-            Powered by modern WebGL, Three.js, and procedural rendering mathematics, 3DWorld delivers a living universe with real 3D geometry, responsive mouse and touch navigation, procedural sound synthesis, and zero external asset dependencies.
-          </p>
-        </div>
-
-        {/* Feature Highlights Grid */}
-        <div className="py-5">
-          <div className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-1.5">
-            <Sparkles className="w-4 h-4 text-cyan-400" />
-            <span>Core Experience Highlights</span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div className="p-3.5 rounded-xl glass-panel border border-white/10">
-              <div className="flex items-center gap-2 mb-1.5">
-                <Box className="w-4 h-4 text-cyan-400" />
-                <h3 className="font-semibold text-sm text-white">100% Real 3D Geometry</h3>
-              </div>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Every cliff face, pagoda roof, crystal geode, and tower is assembled from hierarchical procedural meshes with physical PBR materials.
-              </p>
-            </div>
-
-            <div className="p-3.5 rounded-xl glass-panel border border-white/10">
-              <div className="flex items-center gap-2 mb-1.5">
-                <Eye className="w-4 h-4 text-indigo-400" />
-                <h3 className="font-semibold text-sm text-white">Five Connected Districts</h3>
-              </div>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Journey between Town Center, Residential District, Central Park, Botanical Garden, and Lake District.
-              </p>
-            </div>
-
-            <div className="p-3.5 rounded-xl glass-panel border border-white/10">
-              <div className="flex items-center gap-2 mb-1.5">
-                <Cpu className="w-4 h-4 text-purple-400" />
-                <h3 className="font-semibold text-sm text-white">Adaptive Hardware Engine</h3>
-              </div>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Automatic software WebGL detection, dynamic pixel ratio scaling, touch damping, and responsive controls for all mobile and desktop devices.
-              </p>
-            </div>
-
-            <div className="p-3.5 rounded-xl glass-panel border border-white/10">
-              <div className="flex items-center gap-2 mb-1.5">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <h3 className="font-semibold text-sm text-white">Zero-Asset Reliability</h3>
-              </div>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                All textures, shaders, ambient audio chords, and environmental particles are synthesized locally in code with zero missing 404 risks.
-              </p>
-            </div>
+            <Sparkles className="w-3.5 h-3.5 text-white" />
           </div>
         </div>
 
-        {/* Semantic Footer & Return Button */}
-        <footer className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-white/10">
-          <div className="text-xs font-mono text-slate-400">
-            © 2026 3DWorld. Created by <span className="text-cyan-400 font-semibold">Shahanur Mollah</span>.
-          </div>
+        {/* 2. Heading: "ABOUT THE CREATOR" */}
+        <div className="text-xs font-mono uppercase tracking-[0.24em] text-[#0d9488] font-bold mb-1">
+          ABOUT THE CREATOR
+        </div>
+
+        {/* 3. Name: "Shahanur Mollah" */}
+        <h2
+          id="creator-title"
+          className="font-display font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight"
+        >
+          Shahanur Mollah
+        </h2>
+
+        {/* 4. Position: "Creator & Developer of 3DWorld" */}
+        <div className="text-sm sm:text-base font-semibold text-[#0f766e] tracking-wide mt-1">
+          Creator & Developer of 3DWorld
+        </div>
+
+        {/* 5. Authoritative Description */}
+        <p className="mt-4 text-sm sm:text-[15px] text-slate-700 leading-relaxed font-normal max-w-md mx-auto">
+          &ldquo;3DWorld is created to bring an interactive virtual universe to life, where people can explore, build and experience a connected digital world.&rdquo;
+        </p>
+
+        {/* 6. Action Buttons: Instagram Handle & Return to Universe */}
+        <div className="mt-6 pt-5 border-t border-teal-200/60 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <a
+            href="https://www.instagram.com/shahanurmollah__?mdxt=MTl6cTdzMmwyYWx3dA=="
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Follow Shahanur Mollah on Instagram (@shahanurmollah__)"
+            aria-label="Instagram handle @shahanurmollah__"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-white hover:bg-pink-50/60 text-slate-900 hover:text-pink-700 border border-teal-300 hover:border-pink-300 font-semibold text-xs sm:text-sm shadow-sm transition-all cursor-pointer min-h-[44px]"
+          >
+            <Instagram className="w-4 h-4 text-pink-600" />
+            <span>@shahanurmollah__</span>
+          </a>
 
           <button
             onClick={onClose}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white font-semibold text-xs sm:text-sm tracking-wide shadow-lg shadow-cyan-500/25 transition-all cursor-pointer"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white font-bold text-xs sm:text-sm tracking-wide shadow-md shadow-teal-600/20 transition-all cursor-pointer min-h-[44px]"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Return to 3DWorld</span>
+            <span>Return to Universe</span>
           </button>
-        </footer>
+        </div>
       </section>
     </div>
   );

@@ -7,6 +7,7 @@ interface LandmarkDetailModalProps {
   onClose: () => void;
   onSelectNext: (nextLoc: LocationData) => void;
   onFocusCamera: (landmark: LocationData) => void;
+  onOpenCreator?: () => void;
 }
 
 export const LandmarkDetailModal: React.FC<LandmarkDetailModalProps> = ({
@@ -14,6 +15,7 @@ export const LandmarkDetailModal: React.FC<LandmarkDetailModalProps> = ({
   onClose,
   onSelectNext,
   onFocusCamera,
+  onOpenCreator,
 }) => {
   if (!landmark) return null;
 
@@ -113,6 +115,18 @@ export const LandmarkDetailModal: React.FC<LandmarkDetailModalProps> = ({
 
         {/* Action Controls */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-white/10">
+          {landmark.id === 'creator-pavilion' && onOpenCreator && (
+            <button
+              onClick={() => {
+                onClose();
+                onOpenCreator();
+              }}
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-950 font-bold text-xs tracking-wide shadow-md shadow-teal-500/25 transition-all cursor-pointer flex items-center justify-center gap-2"
+            >
+              <span>View Creator Profile</span>
+            </button>
+          )}
+
           <button
             onClick={() => onFocusCamera(landmark)}
             className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs tracking-wide shadow-md shadow-cyan-600/30 transition-all cursor-pointer flex items-center justify-center gap-2"

@@ -7,6 +7,7 @@ interface DestinationBannerProps {
   onReturnToOverview: () => void;
   onSelectNext: (nextLoc: LocationData) => void;
   onClose: () => void;
+  onOpenCreator?: () => void;
 }
 
 export const DestinationBanner: React.FC<DestinationBannerProps> = ({
@@ -14,6 +15,7 @@ export const DestinationBanner: React.FC<DestinationBannerProps> = ({
   onReturnToOverview,
   onSelectNext,
   onClose,
+  onOpenCreator,
 }) => {
   if (!location) return null;
 
@@ -45,6 +47,15 @@ export const DestinationBanner: React.FC<DestinationBannerProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5">
+            {location.id === 'creator-pavilion' && onOpenCreator && (
+              <button
+                onClick={onOpenCreator}
+                className="flex items-center gap-1 px-3 py-1 rounded-lg bg-gradient-to-r from-teal-400 to-emerald-400 hover:from-teal-300 hover:to-emerald-300 text-slate-950 font-bold text-xs tracking-wide shadow-sm transition-all cursor-pointer"
+              >
+                <span>Creator Profile</span>
+              </button>
+            )}
+
             <button
               onClick={onReturnToOverview}
               className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 active:bg-cyan-500/20 border border-white/10 text-cyan-300 hover:text-white text-xs font-mono transition-colors cursor-pointer"

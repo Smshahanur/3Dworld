@@ -7,6 +7,7 @@ interface BuildingInfoCardProps {
   onClose: () => void;
   onFocusStreetLevel: (building: BuildingInfo) => void;
   onReturnToOverview: () => void;
+  onOpenCreator?: () => void;
 }
 
 export const BuildingInfoCard: React.FC<BuildingInfoCardProps> = ({
@@ -14,6 +15,7 @@ export const BuildingInfoCard: React.FC<BuildingInfoCardProps> = ({
   onClose,
   onFocusStreetLevel,
   onReturnToOverview,
+  onOpenCreator,
 }) => {
   if (!building) return null;
 
@@ -75,9 +77,18 @@ export const BuildingInfoCard: React.FC<BuildingInfoCardProps> = ({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 pt-2.5 border-t border-white/10">
+          {building.id === 'creator-pavilion' && onOpenCreator && (
+            <button
+              onClick={onOpenCreator}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-950 font-bold text-xs tracking-wide shadow-md shadow-teal-500/25 transition-all cursor-pointer"
+            >
+              <span>Meet Creator</span>
+            </button>
+          )}
+
           <button
             onClick={() => onFocusStreetLevel(building)}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs tracking-wide shadow-md shadow-cyan-600/25 transition-all cursor-pointer"
+            className={`${building.id === 'creator-pavilion' ? 'px-3 py-2 rounded-xl bg-white/10 text-white hover:bg-white/15' : 'flex-1 bg-cyan-600 hover:bg-cyan-500 text-white'} flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl font-semibold text-xs tracking-wide shadow-md transition-all cursor-pointer`}
           >
             <Eye className="w-3.5 h-3.5" />
             <span>Street View</span>

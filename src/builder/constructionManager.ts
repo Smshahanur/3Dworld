@@ -3,6 +3,7 @@ import { MaterialLibrary } from '../world/materials';
 import { CatalogItem, CustomPlacedObject, CustomVillageData, ConstructionAction, PlacementValidationResult } from './types';
 import { CATALOG_ITEMS } from './catalog';
 import { validatePlacement } from './validation';
+import { SharedBuildData } from '../multiplayer/types';
 
 export interface ConstructionManagerOptions {
   scene: THREE.Scene;
@@ -26,11 +27,13 @@ export class ConstructionManager {
 
   // Scene Groups
   public customObjectsGroup = new THREE.Group();
+  public sharedObjectsGroup = new THREE.Group();
   public previewGroup = new THREE.Group();
   public selectionMarkerGroup = new THREE.Group();
 
   // State
   private placedObjects = new Map<string, { data: CustomPlacedObject; group: THREE.Group }>();
+  private sharedObjects = new Map<string, { data: SharedBuildData; group: THREE.Group }>();
   private activeCatalogItem: CatalogItem | null = null;
   private previewPosition = new THREE.Vector3(0, 0.08, 0);
   private previewRotation: number = 0; // In radians
@@ -77,10 +80,12 @@ export class ConstructionManager {
     this.budget = options.initialBudget || DEFAULT_BUDGET;
 
     this.customObjectsGroup.name = 'CustomVillageObjects';
+    this.sharedObjectsGroup.name = 'SharedCommunityObjects';
     this.previewGroup.name = 'ConstructionPreview';
     this.selectionMarkerGroup.name = 'CustomObjectSelectionMarker';
 
     this.scene.add(this.customObjectsGroup);
+    this.scene.add(this.sharedObjectsGroup);
     this.scene.add(this.previewGroup);
     this.scene.add(this.selectionMarkerGroup);
 
@@ -724,9 +729,105 @@ export class ConstructionManager {
     this.onStateChange?.();
   }
 
+  // ---------------------------------------------------------------------------
+  // 7. COMMUNITY SHARED BUILDS SYNC
+  // ---------------------------------------------------------------------------
+  public syncSharedBuilds(builds: SharedBuildData[]) {
+    const activeIds = new Set<string>();
+
+    for (const b of builds) {
+      activeIds.add(b.id);
+      if (!this.sharedObjects.has(b.id)) {
+        const item = CATALOG_ITEMS.find((c) => c.id === b.typeId);
+        if (!item) continue;
+
+        const group = item.createMesh(this.materials, this.isSoftwareGl);
+        group.position.set(b.position[0], b.position[1], b.position[2]);
+        group.rotation.y = b.rotation;
+
+        // Add subtle floating community badge
+        const plaque = this.createCommunityPlaque(b.ownerName);
+        plaque.position.set(0, item.footprint.height + 0.8, 0);
+        group.add(plaque);
+
+        group.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
+            child.userData = {
+              isSharedBuild: true,
+              sharedBuildId: b.id,
+              ownerId: b.ownerId,
+              ownerName: b.ownerName,
+            };
+          }
+        });
+
+        this.sharedObjectsGroup.add(group);
+        this.sharedObjects.set(b.id, { data: b, group });
+      }
+    }
+
+    // Remove deleted community builds
+    for (const [id, entry] of this.sharedObjects) {
+      if (!activeIds.has(id)) {
+        this.sharedObjectsGroup.remove(entry.group);
+        this.sharedObjects.delete(id);
+      }
+    }
+  }
+
+  private createCommunityPlaque(ownerName: string): THREE.Sprite {
+    const canvas = document.createElement('canvas');
+    canvas.width = 320;
+    canvas.height = 70;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+      ctx.beginPath();
+      ctx.roundRect(10, 8, 300, 54, 18);
+      ctx.fill();
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = '#10b981';
+      ctx.stroke();
+
+      // Dot badge
+      ctx.beginPath();
+      ctx.arc(36, 35, 8, 0, Math.PI * 2);
+      ctx.fillStyle = '#10b981';
+      ctx.fill();
+
+      // Text
+      ctx.font = 'bold 22px system-ui, sans-serif';
+      ctx.fillStyle = '#e2e8f0';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      const truncated = ownerName.length > 14 ? ownerName.slice(0, 13) + '…' : ownerName;
+      ctx.fillText(`Community • ${truncated}`, 54, 35);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    const spriteMat = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: false,
+    });
+    const sprite = new THREE.Sprite(spriteMat);
+    sprite.scale.set(2.2, 0.5, 1);
+    return sprite;
+  }
+
+  public getSharedBuildsCount(): number {
+    return this.sharedObjects.size;
+  }
+
   public dispose() {
     this.clearAllCustomObjects();
+    for (const entry of this.sharedObjects.values()) {
+      this.sharedObjectsGroup.remove(entry.group);
+    }
+    this.sharedObjects.clear();
     this.scene.remove(this.customObjectsGroup);
+    this.scene.remove(this.sharedObjectsGroup);
     this.scene.remove(this.previewGroup);
     this.scene.remove(this.selectionMarkerGroup);
   }

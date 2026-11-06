@@ -60,6 +60,7 @@ class MultiplayerService {
   private onStateChangeCallbacks: Set<() => void> = new Set();
   private onRemotePlayersUpdateCallbacks: Set<(players: PlayerData[]) => void> = new Set();
   private onChatUpdateCallbacks: Set<(messages: ChatMessage[]) => void> = new Set();
+  private onSharedBuildsUpdateCallbacks: Set<(builds: SharedBuildData[]) => void> = new Set();
 
   constructor() {
     this.initAuthListener();
@@ -275,7 +276,10 @@ class MultiplayerService {
       // 3. Subscribe to global chat
       this.subscribeToChat();
 
-      // 4. Start heartbeat (every 15s)
+      // 4. Subscribe to community shared structures
+      this.subscribeToSharedBuilds();
+
+      // 5. Start heartbeat (every 15s)
       this.startHeartbeat();
 
       this.connectionState = 'connected';
@@ -310,6 +314,10 @@ class MultiplayerService {
     if (this.chatUnsub) {
       this.chatUnsub();
       this.chatUnsub = null;
+    }
+    if (this.sharedBuildsUnsub) {
+      this.sharedBuildsUnsub();
+      this.sharedBuildsUnsub = null;
     }
 
     // Mark player offline in Firestore
@@ -566,6 +574,116 @@ class MultiplayerService {
   public onChatUpdate(cb: (messages: ChatMessage[]) => void): () => void {
     this.onChatUpdateCallbacks.add(cb);
     return () => this.onChatUpdateCallbacks.delete(cb);
+  }
+
+  // ---------------------------------------------------------------------------
+  // 7. SHARED BUILDS (COMMUNITY PERSISTENCE)
+  // ---------------------------------------------------------------------------
+  public subscribeToSharedBuilds() {
+    if (this.sharedBuildsUnsub) return;
+
+    try {
+      const buildsRef = collection(db, 'shared_builds');
+      this.sharedBuildsUnsub = onSnapshot(
+        buildsRef,
+        (snapshot) => {
+          this.sharedBuilds.clear();
+          snapshot.forEach((docSnap) => {
+            const d = docSnap.data();
+            if (d && d.id && Array.isArray(d.position) && d.position.length === 3) {
+              this.sharedBuilds.set(d.id, {
+                id: d.id,
+                ownerId: d.ownerId || '',
+                ownerName: d.ownerName || 'Resident',
+                typeId: d.typeId,
+                position: [d.position[0], d.position[1], d.position[2]],
+                rotation: typeof d.rotation === 'number' ? d.rotation : 0,
+                cost: typeof d.cost === 'number' ? d.cost : 0,
+                createdAt: typeof d.createdAt === 'number' ? d.createdAt : Date.now(),
+              });
+            }
+          });
+          this.notifySharedBuildsUpdate();
+        },
+        (err) => {
+          console.warn('[Multiplayer] Shared builds snapshot error:', err);
+        }
+      );
+    } catch (e) {
+      console.warn('[Multiplayer] Failed to subscribe to shared builds:', e);
+    }
+  }
+
+  public async publishSharedBuild(item: {
+    id: string;
+    typeId: string;
+    position: [number, number, number];
+    rotation: number;
+    cost: number;
+  }): Promise<boolean> {
+    if (!this.currentUser) {
+      throw new Error('You must enter multiplayer to publish to the community virtual world.');
+    }
+
+    // Strict perimeter coordinate validation
+    if (Math.abs(item.position[0]) > 96 || Math.abs(item.position[2]) > 96) {
+      throw new Error('Structure coordinates are outside the permitted village area.');
+    }
+
+    // Anti-spam quota: up to 10 community structures per user
+    let userCount = 0;
+    for (const b of this.sharedBuilds.values()) {
+      if (b.ownerId === this.currentUser.uid) userCount++;
+    }
+    if (userCount >= 10) {
+      throw new Error('You have reached the limit of 10 community structures.');
+    }
+
+    const payload: SharedBuildData = {
+      id: item.id,
+      ownerId: this.currentUser.uid,
+      ownerName: this.currentUser.displayName,
+      typeId: item.typeId,
+      position: [
+        Math.round(item.position[0] * 100) / 100,
+        Math.round(item.position[1] * 100) / 100,
+        Math.round(item.position[2] * 100) / 100,
+      ],
+      rotation: Math.round(item.rotation * 1000) / 1000,
+      cost: item.cost,
+      createdAt: Date.now(),
+    };
+
+    const docRef = doc(db, 'shared_builds', item.id);
+    await setDoc(docRef, payload);
+    return true;
+  }
+
+  public async deleteSharedBuild(buildId: string): Promise<boolean> {
+    if (!this.currentUser) return false;
+    const existing = this.sharedBuilds.get(buildId);
+    if (!existing || existing.ownerId !== this.currentUser.uid) {
+      throw new Error('You can only remove community structures you created.');
+    }
+
+    const docRef = doc(db, 'shared_builds', buildId);
+    await deleteDoc(docRef);
+    return true;
+  }
+
+  public getSharedBuilds(): SharedBuildData[] {
+    return Array.from(this.sharedBuilds.values());
+  }
+
+  public onSharedBuildsUpdate(cb: (builds: SharedBuildData[]) => void): () => void {
+    this.onSharedBuildsUpdateCallbacks.add(cb);
+    cb(this.getSharedBuilds());
+    return () => this.onSharedBuildsUpdateCallbacks.delete(cb);
+  }
+
+  private notifySharedBuildsUpdate() {
+    const list = this.getSharedBuilds();
+    for (const cb of this.onSharedBuildsUpdateCallbacks) cb(list);
   }
 
   private notifyState() {

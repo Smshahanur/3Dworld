@@ -189,11 +189,48 @@ export function createWoodPlankTexture(): THREE.CanvasTexture {
   return texture;
 }
 
+// Procedural seamless periodic water ripple bump texture
+export function createWaterRippleTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d')!;
+
+  const imgData = ctx.createImageData(256, 256);
+  const data = imgData.data;
+
+  for (let y = 0; y < 256; y++) {
+    const ny = (y / 256) * Math.PI * 4;
+    for (let x = 0; x < 256; x++) {
+      const nx = (x / 256) * Math.PI * 4;
+      const w1 = Math.sin(nx * 2 + Math.cos(ny * 2));
+      const w2 = Math.cos(ny * 3 - Math.sin(nx * 1.5));
+      const w3 = Math.sin((nx + ny) * 2.5) * 0.5;
+      const val = Math.floor(128 + ((w1 + w2 + w3) / 2.5) * 110);
+      const clamped = Math.max(0, Math.min(255, val));
+
+      const idx = (y * 256 + x) * 4;
+      data[idx] = clamped;
+      data[idx + 1] = clamped;
+      data[idx + 2] = clamped;
+      data[idx + 3] = 255;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(4, 16);
+  return texture;
+}
+
 export interface MaterialLibrary {
   // Environmental & Landscaping
   grassMaterial: THREE.MeshStandardMaterial;
   parkLawnMaterial: THREE.MeshStandardMaterial;
   lakeWaterMaterial: THREE.MeshStandardMaterial;
+  waterRippleTexture?: THREE.CanvasTexture;
   riverBankMaterial: THREE.MeshStandardMaterial;
   rockStoneMaterial: THREE.MeshStandardMaterial;
   asphaltMaterial: THREE.MeshStandardMaterial;
@@ -219,6 +256,17 @@ export interface MaterialLibrary {
   metalBlack: THREE.MeshStandardMaterial;
   doorWood: THREE.MeshStandardMaterial;
   concreteCurbs: THREE.MeshStandardMaterial;
+  dirtRoadMaterial: THREE.MeshStandardMaterial;
+  thatchedRoofMaterial: THREE.MeshStandardMaterial;
+  clayBrickMaterial: THREE.MeshStandardMaterial;
+  bambooGreen: THREE.MeshStandardMaterial;
+  farmlandSoil: THREE.MeshStandardMaterial;
+  cropGreen: THREE.MeshStandardMaterial;
+  capitalGranite: THREE.MeshStandardMaterial;
+  capitalGlassTower: THREE.MeshStandardMaterial;
+  capitalDarkSteel: THREE.MeshStandardMaterial;
+  capitalGoldTrim: THREE.MeshStandardMaterial;
+  riverWaterMaterial: THREE.MeshStandardMaterial;
 
   // Botanical & Foliage
   treeFoliageDarkGreen: THREE.MeshStandardMaterial;
@@ -241,6 +289,7 @@ export interface MaterialLibrary {
   carPaintRed: THREE.MeshStandardMaterial;
   carPaintGrey: THREE.MeshStandardMaterial;
   carPaintEmerald: THREE.MeshStandardMaterial;
+  carPaintYellow: THREE.MeshStandardMaterial;
   carTireRubber: THREE.MeshStandardMaterial;
   carGlass: THREE.MeshStandardMaterial;
   lampGlow: THREE.MeshBasicMaterial;
@@ -279,6 +328,7 @@ export function createMaterialLibrary(isSoftwareGl: boolean): MaterialLibrary {
   const asphaltTex = createAsphaltTexture();
   const paverTex = createPaverTexture();
   const woodTex = createWoodPlankTexture();
+  const waterRippleTex = createWaterRippleTexture();
 
   // 1. Terrain & Pathways
   const grassMaterial = new THREE.MeshStandardMaterial({
@@ -300,6 +350,8 @@ export function createMaterialLibrary(isSoftwareGl: boolean): MaterialLibrary {
     color: 0x0284c7,
     roughness: 0.08,
     metalness: 0.85,
+    bumpMap: waterRippleTex,
+    bumpScale: 0.12,
     transparent: true,
     opacity: 0.86,
   });
@@ -447,6 +499,80 @@ export function createMaterialLibrary(isSoftwareGl: boolean): MaterialLibrary {
     metalness: 0.1,
   });
 
+  // Rural Materials
+  const dirtRoadMaterial = new THREE.MeshStandardMaterial({
+    color: 0x855838,
+    roughness: 0.94,
+    metalness: 0.04,
+  });
+
+  const thatchedRoofMaterial = new THREE.MeshStandardMaterial({
+    color: 0xb48448,
+    roughness: 0.92,
+    metalness: 0.04,
+  });
+
+  const clayBrickMaterial = new THREE.MeshStandardMaterial({
+    color: 0x9c422b,
+    roughness: 0.85,
+    metalness: 0.05,
+  });
+
+  const bambooGreen = new THREE.MeshStandardMaterial({
+    color: 0x65a30d,
+    roughness: 0.72,
+    metalness: 0.05,
+  });
+
+  const farmlandSoil = new THREE.MeshStandardMaterial({
+    color: 0x3d2314,
+    roughness: 0.96,
+    metalness: 0.02,
+  });
+
+  const cropGreen = new THREE.MeshStandardMaterial({
+    color: 0x22c55e,
+    roughness: 0.8,
+    metalness: 0.04,
+  });
+
+  // Capital Town Materials
+  const capitalGranite = new THREE.MeshStandardMaterial({
+    color: 0xd1d5db,
+    roughness: 0.65,
+    metalness: 0.15,
+  });
+
+  const capitalGlassTower = new THREE.MeshStandardMaterial({
+    color: 0x0284c7,
+    roughness: 0.06,
+    metalness: 0.92,
+    transparent: true,
+    opacity: 0.85,
+  });
+
+  const capitalDarkSteel = new THREE.MeshStandardMaterial({
+    color: 0x334155,
+    roughness: 0.35,
+    metalness: 0.88,
+  });
+
+  const capitalGoldTrim = new THREE.MeshStandardMaterial({
+    color: 0xd97706,
+    roughness: 0.3,
+    metalness: 0.85,
+  });
+
+  const riverWaterMaterial = new THREE.MeshStandardMaterial({
+    color: 0x0284c7,
+    roughness: 0.1,
+    metalness: 0.85,
+    bumpMap: waterRippleTex,
+    bumpScale: 0.18,
+    transparent: true,
+    opacity: 0.88,
+  });
+
   // 3. Foliage & Botanical
   const treeFoliageDarkGreen = new THREE.MeshStandardMaterial({
     color: 0x15803d,
@@ -558,6 +684,12 @@ export function createMaterialLibrary(isSoftwareGl: boolean): MaterialLibrary {
     color: 0x059669,
     roughness: 0.2,
     metalness: 0.75,
+  });
+
+  const carPaintYellow = new THREE.MeshStandardMaterial({
+    color: 0xeab308,
+    roughness: 0.25,
+    metalness: 0.8,
   });
 
   const carTireRubber = new THREE.MeshStandardMaterial({
@@ -674,6 +806,17 @@ export function createMaterialLibrary(isSoftwareGl: boolean): MaterialLibrary {
     metalBlack,
     doorWood,
     concreteCurbs,
+    dirtRoadMaterial,
+    thatchedRoofMaterial,
+    clayBrickMaterial,
+    bambooGreen,
+    farmlandSoil,
+    cropGreen,
+    capitalGranite,
+    capitalGlassTower,
+    capitalDarkSteel,
+    capitalGoldTrim,
+    riverWaterMaterial,
     treeFoliageDarkGreen,
     treeFoliageLightGreen,
     treeFoliageOlive,
@@ -692,6 +835,7 @@ export function createMaterialLibrary(isSoftwareGl: boolean): MaterialLibrary {
     carPaintRed,
     carPaintGrey,
     carPaintEmerald,
+    carPaintYellow,
     carTireRubber,
     carGlass,
     lampGlow,
@@ -712,6 +856,7 @@ export function createMaterialLibrary(isSoftwareGl: boolean): MaterialLibrary {
     pedestrianSkin,
     kayakYellow,
     kayakRed,
+    waterRippleTexture: waterRippleTex,
     updateNightGlow,
   };
 }

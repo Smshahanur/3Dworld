@@ -99,7 +99,7 @@ export const LocationDrawer: React.FC<LocationDrawerProps> = ({
               </h2>
             </div>
             <p className="text-xs text-slate-400 mt-1">
-              Search and filter across modern village districts and public facilities.
+              Search and filter across Rural Village, Modern Village, Capital Town, and public amenities.
             </p>
           </div>
 
@@ -136,7 +136,7 @@ export const LocationDrawer: React.FC<LocationDrawerProps> = ({
         <div className="flex items-center gap-1.5 overflow-x-auto py-2.5 no-scrollbar">
           {[
             { id: 'all', label: 'All Places' },
-            { id: 'districts', label: '5 Districts' },
+            { id: 'districts', label: 'Districts' },
             { id: 'civic', label: 'Civic & Medical' },
             { id: 'commercial', label: 'Shops & Cafés' },
             { id: 'residential', label: 'Residential' },

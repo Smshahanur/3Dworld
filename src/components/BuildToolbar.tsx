@@ -21,9 +21,11 @@ import {
   TreePine,
   Waypoints,
   Sparkles,
+  Globe,
 } from 'lucide-react';
 import { CatalogCategory, CatalogItem, CustomPlacedObject } from '../builder/types';
 import { CATALOG_ITEMS, CATEGORY_LABELS } from '../builder/catalog';
+import { ConfirmModal } from './ConfirmModal';
 
 interface BuildToolbarProps {
   activeItem: CatalogItem | null;
@@ -49,6 +51,8 @@ interface BuildToolbarProps {
   onLoadVillage: () => { success: boolean; name?: string; count?: number; error?: string };
   onResetVillage: () => void;
   onExitBuildMode: () => void;
+  isMultiplayerActive?: boolean;
+  onPublishToSharedWorld?: (obj: CustomPlacedObject) => Promise<{ success: boolean; error?: string }>;
 }
 
 export const BuildToolbar: React.FC<BuildToolbarProps> = ({
@@ -75,13 +79,17 @@ export const BuildToolbar: React.FC<BuildToolbarProps> = ({
   onLoadVillage,
   onResetVillage,
   onExitBuildMode,
+  isMultiplayerActive = false,
+  onPublishToSharedWorld,
 }) => {
   const [activeCategory, setActiveCategory] = useState<CatalogCategory | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isCatalogOpen, setIsCatalogOpen] = useState(true);
   const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
   const [saveVillageName, setSaveVillageName] = useState('My Modern Village');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isPublishing, setIsPublishing] = useState(false);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -124,13 +132,29 @@ export const BuildToolbar: React.FC<BuildToolbarProps> = ({
   };
 
   const handleReset = () => {
-    if (
-      window.confirm(
-        'Reset all custom placed objects? The original village landmarks and simulation will remain 100% intact.'
-      )
-    ) {
-      onResetVillage();
-      showToast('Custom layout reset. Initial budget restored.');
+    setConfirmResetOpen(true);
+  };
+
+  const handleConfirmReset = () => {
+    onResetVillage();
+    setConfirmResetOpen(false);
+    showToast('Custom layout reset. Initial budget restored.');
+  };
+
+  const handlePublishShared = async () => {
+    if (!selectedObject || !onPublishToSharedWorld) return;
+    setIsPublishing(true);
+    try {
+      const res = await onPublishToSharedWorld(selectedObject);
+      if (res.success) {
+        showToast('Published structure to Shared Community World! Visible to all online players.');
+      } else {
+        showToast(res.error || 'Failed to publish structure.');
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to publish to community.');
+    } finally {
+      setIsPublishing(false);
     }
   };
 
@@ -419,6 +443,19 @@ export const BuildToolbar: React.FC<BuildToolbarProps> = ({
                   <span>Duplicate</span>
                 </button>
 
+                {/* Share to Community World */}
+                {isMultiplayerActive && onPublishToSharedWorld && (
+                  <button
+                    onClick={handlePublishShared}
+                    disabled={isPublishing}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/70 border border-emerald-500/40 text-emerald-300 text-xs transition-colors cursor-pointer disabled:opacity-50"
+                    title="Publish structure to Shared Community World so all online visitors can view it"
+                  >
+                    <Globe className="w-3 h-3 text-emerald-400" />
+                    <span>{isPublishing ? 'Publishing...' : 'Share to World'}</span>
+                  </button>
+                )}
+
                 <button
                   onClick={onDeleteSelected}
                   className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-950/50 hover:bg-rose-900/60 border border-rose-500/30 text-rose-300 text-xs transition-colors cursor-pointer"
@@ -523,6 +560,18 @@ export const BuildToolbar: React.FC<BuildToolbarProps> = ({
           )}
         </div>
       </div>
+
+      {/* Confirmation Modal for Custom Layout Reset */}
+      <ConfirmModal
+        isOpen={confirmResetOpen}
+        title="Reset Custom Village Layout?"
+        message="Are you sure you want to remove all custom-placed structures and reset your construction budget? The base modern village, landmarks, and simulation will remain 100% intact."
+        confirmLabel="Reset Custom Layout"
+        cancelLabel="Cancel"
+        isDestructive={true}
+        onConfirm={handleConfirmReset}
+        onCancel={() => setConfirmResetOpen(false)}
+      />
     </>
   );
 };

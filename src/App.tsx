@@ -5,7 +5,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { SceneManager } from './world/sceneManager';
-import { LightingMode, LOCATIONS, LocationData, BuildingInfo, ViewMode, BUILDINGS, GraphicsQuality, SimulationSpeed } from './types';
+import { LightingMode, LOCATIONS, LocationData, BuildingInfo, ViewMode, BUILDINGS, GraphicsQuality, SimulationSpeed, WeatherMode } from './types';
 import { soundManager } from './utils/audio';
 import { Navbar } from './components/Navbar';
 import { HeroOverlay } from './components/HeroOverlay';
@@ -21,11 +21,14 @@ import { MultiplayerHUD } from './components/MultiplayerHUD';
 import { MultiplayerChat } from './components/MultiplayerChat';
 import { VirtualJoystick } from './components/VirtualJoystick';
 import { PlayerProfileModal } from './components/PlayerProfileModal';
+import { VehicleDashboard } from './components/VehicleDashboard';
+import { DrivingDiagnosticPanel } from './components/DrivingDiagnosticPanel';
 import { multiplayerService } from './multiplayer/multiplayerService';
 import { PlayerData, ChatMessage, MultiplayerUser } from './multiplayer/types';
 import { AboutModal } from './components/AboutModal';
 import { Footer } from './components/Footer';
 import { LoadingScreen } from './components/LoadingScreen';
+import { WorldMinimap } from './components/WorldMinimap';
 import { WebGLFallback } from './components/WebGLFallback';
 
 export default function App() {
@@ -95,6 +98,23 @@ export default function App() {
   const [timeOfDay, setTimeOfDay] = useState(12.0);
   const [formattedTime, setFormattedTime] = useState('12:00 PM');
   const [autoDayNight, setAutoDayNight] = useState(true);
+
+  // Weather System State (Clear, Rain, Snow, Fog)
+  const [weatherMode, setWeatherMode] = useState<WeatherMode>(() => {
+    try {
+      const saved = localStorage.getItem('3dworld_weather_mode');
+      return (saved === 'clear' || saved === 'rain' || saved === 'snow' || saved === 'fog' ? saved : 'clear') as WeatherMode;
+    } catch {
+      return 'clear';
+    }
+  });
+
+  // Drivable Electric Vehicle State (Town Center Roadster)
+  const [isDriving, setIsDriving] = useState(false);
+  const [vehicleSpeed, setVehicleSpeed] = useState(0);
+  const [vehicleGear, setVehicleGear] = useState<'D' | 'R' | 'P'>('P');
+  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
+
   const [activeLocationId, setActiveLocationId] = useState<string | null>(null);
   const [selectedLandmark, setSelectedLandmark] = useState<LocationData | null>(null);
   const [selectedBuilding, setSelectedBuilding] = useState<BuildingInfo | null>(null);
@@ -103,6 +123,7 @@ export default function App() {
   // Modals & Panels
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const [aboutInitialTab, setAboutInitialTab] = useState<'creator' | 'project'>('creator');
 
   // Check WebGL availability
   useEffect(() => {
@@ -139,10 +160,16 @@ export default function App() {
         setSelectedLandmark(loc);
         setSelectedBuilding(null);
         soundManager.playInteractSound();
+        if (loc.id === 'creator-pavilion') {
+          setIsAboutOpen(true);
+        }
       },
       onSelectBuilding: (building) => {
         setSelectedBuilding(building);
         soundManager.playInteractSound();
+        if (building?.id === 'creator-pavilion') {
+          setIsAboutOpen(true);
+        }
       },
       onHoverLandmark: (name) => {
         setHoveredLandmark(name);
@@ -168,6 +195,13 @@ export default function App() {
         setSelectedRemotePlayer(player);
         soundManager.playInteractSound();
       },
+      onDriveStateChange: (driving) => {
+        setIsDriving(driving);
+      },
+      onVehicleSpeedChange: (speed, gear) => {
+        setVehicleSpeed(speed);
+        setVehicleGear(gear);
+      },
       onLoadingComplete: () => {
         clearInterval(progressTimer);
         setLoadProgress(100);
@@ -185,6 +219,7 @@ export default function App() {
     sm.setEnvironmentAnimationActive(envAnimationActive);
     sm.setSimulationSpeed(simulationSpeed);
     sm.setGraphicsQuality(graphicsQuality);
+    sm.setWeather(weatherMode);
 
     // Sync initial builder state
     setBudget(sm.construction.getBudget());
@@ -363,7 +398,20 @@ export default function App() {
     soundManager.playInteractSound();
   }, []);
 
-  // Subscribe to Multiplayer Service updates
+  // Dedicated Creator Experience & 3D Creator Pavilion Navigation
+  const handleOpenCreator = useCallback(() => {
+    const creatorLoc = LOCATIONS.find((l) => l.id === 'creator-pavilion');
+    if (creatorLoc) {
+      setActiveLocationId(creatorLoc.id);
+      setSelectedLandmark(creatorLoc);
+      setSelectedBuilding(null);
+      sceneManagerRef.current?.travelToLocation(creatorLoc);
+    }
+    setIsAboutOpen(true);
+    soundManager.playInteractSound();
+  }, []);
+
+  // Subscribe to Multiplayer Service updates & Community Shared Builds
   useEffect(() => {
     const unsubPlayers = multiplayerService.onRemotePlayersUpdate((players) => {
       setRemotePlayers(players);
@@ -376,9 +424,14 @@ export default function App() {
       }
     });
 
+    const unsubBuilds = multiplayerService.onSharedBuildsUpdate((builds) => {
+      sceneManagerRef.current?.construction?.syncSharedBuilds(builds);
+    });
+
     return () => {
       unsubPlayers();
       unsubChat();
+      unsubBuilds();
     };
   }, [isChatOpen]);
 
@@ -405,8 +458,9 @@ export default function App() {
     sceneManagerRef.current?.avatars.setFollowCamera(true);
     setFollowCamera(true);
 
-    // Join online Firestore realm
+    // Join online Firestore realm & subscribe to shared builds
     multiplayerService.joinMultiplayerWorld();
+    multiplayerService.subscribeToSharedBuilds();
     soundManager.playInteractSound();
   }, []);
 
@@ -528,6 +582,44 @@ export default function App() {
     soundManager.playInteractSound();
   }, []);
 
+  // Weather System Selection Handler (Clear, Rain, Snow, Fog)
+  const handleSelectWeather = useCallback((mode: WeatherMode) => {
+    setWeatherMode(mode);
+    sceneManagerRef.current?.setWeather(mode);
+    soundManager.setWeatherSound(mode);
+    try { localStorage.setItem('3dworld_weather_mode', mode); } catch {}
+    soundManager.playInteractSound();
+  }, []);
+
+  // Drivable Roadster Toggle Handler
+  const handleToggleDrive = useCallback(() => {
+    if (isDriving) {
+      sceneManagerRef.current?.stopDriving();
+    } else {
+      sceneManagerRef.current?.startDriving();
+    }
+    soundManager.playInteractSound();
+  }, [isDriving]);
+
+  // Publish structure to Firestore Shared Builds
+  const handlePublishToSharedWorld = useCallback(async (obj: CustomPlacedObject): Promise<{ success: boolean; error?: string }> => {
+    if (!multiplayerUser) {
+      return { success: false, error: 'Must enter Multiplayer World to publish community structures.' };
+    }
+    try {
+      await multiplayerService.publishSharedBuild({
+        id: obj.id,
+        typeId: obj.typeId,
+        position: obj.position,
+        rotation: obj.rotation,
+        cost: obj.cost,
+      });
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Failed to publish to community.' };
+    }
+  }, [multiplayerUser]);
+
   // Handle Explore World Button (Cinematic fly-in)
   const handleExploreWorld = useCallback(() => {
     setHeroDismissed(true);
@@ -553,18 +645,22 @@ export default function App() {
         setIsAboutOpen(false);
       } else if (e.key.toLowerCase() === 'h' && !isDrawerOpen && !isAboutOpen && !selectedLandmark && !selectedBuilding) {
         setCinemaMode((prev) => !prev);
+      } else if (e.key.toLowerCase() === 't' && !isDrawerOpen && !isAboutOpen) {
+        setIsDiagnosticsOpen((prev) => !prev);
+      } else if (e.shiftKey && (e.key === 'D' || e.key === 'd')) {
+        sceneManagerRef.current?.toggleSpatialDebug();
       } else if (e.key.toLowerCase() === 'b' && !isDrawerOpen && !isAboutOpen) {
         handleToggleBuildMode();
       } else if (e.key.toLowerCase() === 'm' && !isDrawerOpen && !isAboutOpen && !isBuildMode) {
         handleToggleMultiplayer();
-      } else if (e.key === ' ' && !isDrawerOpen && !isAboutOpen && !selectedLandmark && !selectedBuilding) {
+      } else if (e.key === ' ' && !isDriving && !isDrawerOpen && !isAboutOpen && !selectedLandmark && !selectedBuilding) {
         e.preventDefault();
         handleToggleAutoRotate();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isDrawerOpen, isAboutOpen, selectedLandmark, selectedBuilding, handleToggleAutoRotate, handleToggleBuildMode, isBuildMode, handleToggleMultiplayer]);
+  }, [isDrawerOpen, isAboutOpen, selectedLandmark, selectedBuilding, handleToggleAutoRotate, handleToggleBuildMode, isBuildMode, handleToggleMultiplayer, isDriving]);
 
   if (!hasWebGL) {
     return <WebGLFallback />;
@@ -643,7 +739,8 @@ export default function App() {
         }}
         onExploreClick={handleExploreWorld}
         onDiscoverClick={() => setIsDrawerOpen(true)}
-        onAboutClick={() => setIsAboutOpen(true)}
+        onAboutClick={handleOpenCreator}
+        onCreatorClick={handleOpenCreator}
         isBuildMode={isBuildMode}
         onToggleBuildMode={() => handleToggleBuildMode()}
         isMultiplayerActive={isMultiplayerActive}
@@ -666,6 +763,7 @@ export default function App() {
           onReturnToOverview={handleResetView}
           onSelectNext={(nextLoc) => handleSelectLocation(nextLoc)}
           onClose={() => setActiveLocationId(null)}
+          onOpenCreator={handleOpenCreator}
         />
       )}
 
@@ -686,6 +784,23 @@ export default function App() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* 5b. Interactive World Navigation Minimap (Three Districts & GPS Tracking) */}
+      {!cinemaMode && !isBuildMode && (
+        <WorldMinimap
+          getNavPositions={() => sceneManagerRef.current?.getNavPositions()}
+          onFastTravel={(district) => {
+            if (district === 'rural') {
+              sceneManagerRef.current?.flyTo([-110, 35, 45], [-110, 0, 0], 1.8);
+            } else if (district === 'modern') {
+              sceneManagerRef.current?.flyTo([-5, 45, 55], [-5, 0, 0], 1.8);
+            } else if (district === 'capital') {
+              sceneManagerRef.current?.flyTo([105, 65, 75], [105, 0, 0], 1.8);
+            }
+          }}
+          cinemaMode={cinemaMode}
+        />
       )}
 
       {/* 6. Hero Intro Overlay (Full-screen hero presentation) */}
@@ -709,17 +824,22 @@ export default function App() {
           }}
           onFocusStreetLevel={handleFocusBuildingStreetLevel}
           onReturnToOverview={handleResetView}
+          onOpenCreator={handleOpenCreator}
         />
       )}
 
       {/* 8a. Collapsible Bottom Control Dock (Exploration & Simulation HUD) */}
-      {!cinemaMode && !isBuildMode && (
+      {!cinemaMode && !isBuildMode && !isDriving && (
         <BottomControlDock
           onResetView={handleResetView}
           autoRotate={autoRotate}
           onToggleAutoRotate={handleToggleAutoRotate}
           lightingMode={lightingMode}
           onSelectLighting={handleSelectLighting}
+          weatherMode={weatherMode}
+          onSelectWeather={handleSelectWeather}
+          isDriving={isDriving}
+          onToggleDrive={handleToggleDrive}
           activeLocationId={activeLocationId}
           onSelectLocation={handleSelectLocation}
           soundEnabled={soundEnabled}
@@ -781,6 +901,8 @@ export default function App() {
           onLoadVillage={handleLoadVillage}
           onResetVillage={handleResetVillage}
           onExitBuildMode={() => handleToggleBuildMode(false)}
+          isMultiplayerActive={isMultiplayerActive}
+          onPublishToSharedWorld={handlePublishToSharedWorld}
         />
       )}
 
@@ -809,13 +931,50 @@ export default function App() {
             currentUserId={multiplayerUser.uid}
           />
 
+          {!isDriving && (
+            <VirtualJoystick
+              onMove={(forward, strafe) => {
+                sceneManagerRef.current?.avatars.setTouchJoystickInput(forward, strafe);
+              }}
+            />
+          )}
+        </>
+      )}
+
+      {/* 8d. Electric Roadster Driving HUD & Touch Controls */}
+      {!cinemaMode && isDriving && (
+        <>
+          <VehicleDashboard
+            speedKmh={vehicleSpeed}
+            gear={vehicleGear}
+            onExit={handleToggleDrive}
+            onToggleDiagnostics={() => setIsDiagnosticsOpen((prev) => !prev)}
+            isDiagnosticsOpen={isDiagnosticsOpen}
+            onReset={() => sceneManagerRef.current?.resetVehicle()}
+            onThrottle={(v) => sceneManagerRef.current?.vehicle.setThrottle(v)}
+            onSteer={(v) => sceneManagerRef.current?.vehicle.setSteer(v)}
+            onBrake={(b) => sceneManagerRef.current?.vehicle.setBrake(b)}
+          />
           <VirtualJoystick
             onMove={(forward, strafe) => {
-              sceneManagerRef.current?.avatars.setTouchJoystickInput(forward, strafe);
+              sceneManagerRef.current?.vehicle.setThrottle(forward);
+              sceneManagerRef.current?.vehicle.setSteer(strafe);
             }}
           />
         </>
       )}
+
+      {/* Live Vehicle Telemetry & Collision Diagnostic Panel */}
+      <DrivingDiagnosticPanel
+        isOpen={isDiagnosticsOpen}
+        onClose={() => setIsDiagnosticsOpen(false)}
+        getDiagnostics={() => sceneManagerRef.current?.getVehicleDiagnostics()}
+        onResetVehicle={() => sceneManagerRef.current?.resetVehicle()}
+        onExitVehicle={handleToggleDrive}
+        onToggleSpatialDebug={() => sceneManagerRef.current?.toggleSpatialDebug() ?? false}
+        getSpatialDebugVisible={() => sceneManagerRef.current?.getSpatialDebugVisible() ?? false}
+        getSpatialAuditReport={() => sceneManagerRef.current?.getSpatialAuditReport() ?? null}
+      />
 
       {/* Multiplayer Entrance Dialog */}
       <MultiplayerModal
@@ -846,16 +1005,21 @@ export default function App() {
         onClose={() => setSelectedLandmark(null)}
         onSelectNext={(nextLoc) => handleSelectLocation(nextLoc)}
         onFocusCamera={(loc) => sceneManagerRef.current?.travelToLocation(loc)}
+        onOpenCreator={handleOpenCreator}
       />
 
       {/* 11. About 3DWorld Modal */}
       <AboutModal
         isOpen={isAboutOpen}
         onClose={() => setIsAboutOpen(false)}
+        initialTab={aboutInitialTab}
       />
 
       {/* 12. Persistent Footer Credit (Zero Dock Overlap) */}
-      <Footer cinemaMode={cinemaMode} />
+      <Footer
+        cinemaMode={cinemaMode}
+        onOpenCreator={handleOpenCreator}
+      />
     </main>
   );
 }

@@ -7,6 +7,7 @@ interface NavbarProps {
   onExploreClick: () => void;
   onDiscoverClick: () => void;
   onAboutClick: () => void;
+  onCreatorClick?: () => void;
   isBuildMode?: boolean;
   onToggleBuildMode?: () => void;
   isMultiplayerActive?: boolean;
@@ -27,6 +28,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onExploreClick,
   onDiscoverClick,
   onAboutClick,
+  onCreatorClick,
   isBuildMode = false,
   onToggleBuildMode,
   isMultiplayerActive = false,

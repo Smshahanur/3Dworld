@@ -25,8 +25,11 @@ import {
   RefreshCw,
   Sparkles,
   Hammer,
+  CloudRain,
+  Snowflake,
+  CloudFog,
 } from 'lucide-react';
-import { LightingMode, LOCATIONS, LocationData, ViewMode, GraphicsQuality, SimulationSpeed } from '../types';
+import { LightingMode, LOCATIONS, LocationData, ViewMode, GraphicsQuality, SimulationSpeed, WeatherMode } from '../types';
 
 interface BottomControlDockProps {
   onResetView: () => void;
@@ -34,6 +37,10 @@ interface BottomControlDockProps {
   onToggleAutoRotate: () => void;
   lightingMode: LightingMode;
   onSelectLighting: (mode: LightingMode) => void;
+  weatherMode?: WeatherMode;
+  onSelectWeather?: (mode: WeatherMode) => void;
+  isDriving?: boolean;
+  onToggleDrive?: () => void;
   activeLocationId: string | null;
   onSelectLocation: (loc: LocationData) => void;
   soundEnabled: boolean;
@@ -74,6 +81,10 @@ export const BottomControlDock: React.FC<BottomControlDockProps> = ({
   onToggleAutoRotate,
   lightingMode,
   onSelectLighting,
+  weatherMode = 'clear',
+  onSelectWeather,
+  isDriving = false,
+  onToggleDrive,
   activeLocationId,
   onSelectLocation,
   soundEnabled,
@@ -180,6 +191,22 @@ export const BottomControlDock: React.FC<BottomControlDockProps> = ({
                       <span className="font-medium text-[11px] sm:text-xs">Explore</span>
                     </>
                   )}
+                </button>
+              )}
+
+              {/* Drivable Electric Vehicle Exploration Button */}
+              {onToggleDrive && (
+                <button
+                  onClick={onToggleDrive}
+                  className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs transition-all cursor-pointer min-h-[34px] ${
+                    isDriving
+                      ? 'bg-cyan-500/30 border-cyan-400 text-cyan-200 shadow-sm shadow-cyan-500/30 font-semibold'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-cyan-300'
+                  }`}
+                  title={isDriving ? 'Exit Electric Roadster' : 'Drive Electric Roadster in Town Center (WASD / Arrows)'}
+                >
+                  <Car className="w-3.5 h-3.5 shrink-0 text-cyan-400" />
+                  <span className="font-medium text-[11px] sm:text-xs">{isDriving ? 'Exit EV' : 'Drive EV'}</span>
                 </button>
               )}
 
@@ -385,6 +412,63 @@ export const BottomControlDock: React.FC<BottomControlDockProps> = ({
                   <Moon className="w-3.5 h-3.5" />
                 </button>
               </div>
+
+              {/* Weather System Atmosphere Selector */}
+              {onSelectWeather && (
+                <div className="flex items-center gap-0.5 p-0.5 rounded-xl bg-white/5 border border-white/10" title="Dynamic Weather Particle FX">
+                  <button
+                    onClick={() => onSelectWeather('clear')}
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                      weatherMode === 'clear'
+                        ? 'bg-amber-500/30 text-amber-300 font-bold'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                    title="Clear Weather (Bright skies & sunlight)"
+                    aria-label="Clear Weather"
+                  >
+                    <Sun className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    onClick={() => onSelectWeather('rain')}
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                      weatherMode === 'rain'
+                        ? 'bg-blue-500/30 text-blue-300 font-bold'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                    title="Rain Storm (Falling rain streaks & procedural soundscape)"
+                    aria-label="Rainy Weather"
+                  >
+                    <CloudRain className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    onClick={() => onSelectWeather('snow')}
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                      weatherMode === 'snow'
+                        ? 'bg-cyan-500/30 text-cyan-200 font-bold'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                    title="Snowfall (Soft drifting snowflakes)"
+                    aria-label="Snowy Weather"
+                  >
+                    <Snowflake className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    onClick={() => onSelectWeather('fog')}
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                      weatherMode === 'fog'
+                        ? 'bg-slate-400/30 text-slate-200 font-bold'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                    title="Atmospheric Fog (Reduced visibility haze)"
+                    aria-label="Foggy Weather"
+                  >
+                    <CloudFog className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 

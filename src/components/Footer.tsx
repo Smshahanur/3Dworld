@@ -2,9 +2,10 @@ import React from 'react';
 
 interface FooterProps {
   cinemaMode?: boolean;
+  onOpenCreator?: () => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ cinemaMode }) => {
+export const Footer: React.FC<FooterProps> = ({ cinemaMode, onOpenCreator }) => {
   if (cinemaMode) return null;
 
   return (
@@ -14,9 +15,20 @@ export const Footer: React.FC<FooterProps> = ({ cinemaMode }) => {
     >
       <p className="pointer-events-auto text-[11px] sm:text-xs font-mono text-slate-400 text-center tracking-wide">
         © 2026 3DWorld. Created by{' '}
-        <span className="text-cyan-400 font-semibold tracking-normal">
-          Shahanur Mollah
-        </span>
+        {onOpenCreator ? (
+          <button
+            onClick={onOpenCreator}
+            title="View About the Creator - Shahanur Mollah"
+            aria-label="View About the Creator - Shahanur Mollah"
+            className="text-teal-400 font-semibold tracking-normal hover:text-teal-300 hover:underline underline-offset-2 transition-colors cursor-pointer inline-flex items-center gap-1"
+          >
+            <span>Shahanur Mollah</span>
+          </button>
+        ) : (
+          <span className="text-teal-400 font-semibold tracking-normal">
+            Shahanur Mollah
+          </span>
+        )}
         .
       </p>
     </footer>

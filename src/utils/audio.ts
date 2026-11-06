@@ -136,6 +136,66 @@ class AudioManager {
     this.chimeTimer = window.setTimeout(this.scheduleNextChime, delay);
   };
 
+  // Weather-specific audio: procedural gentle rainfall
+  private rainNoiseNode: AudioBufferSourceNode | null = null;
+  private rainGainNode: GainNode | null = null;
+
+  public setWeatherSound(mode: 'clear' | 'rain' | 'snow' | 'fog') {
+    if (!this.ctx || !this.isPlaying) return;
+
+    if (mode === 'rain') {
+      if (this.rainNoiseNode) return;
+      try {
+        const bufferSize = this.ctx.sampleRate * 2;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        let lastOut = 0.0;
+        for (let i = 0; i < bufferSize; i++) {
+          const white = Math.random() * 2 - 1;
+          data[i] = (lastOut + 0.02 * white) / 1.02; // Pink-ish filter
+          lastOut = data[i];
+          data[i] *= 3.5;
+        }
+
+        this.rainNoiseNode = this.ctx.createBufferSource();
+        this.rainNoiseNode.buffer = buffer;
+        this.rainNoiseNode.loop = true;
+
+        const rainFilter = this.ctx.createBiquadFilter();
+        rainFilter.type = 'lowpass';
+        rainFilter.frequency.setValueAtTime(1100, this.ctx.currentTime);
+
+        this.rainGainNode = this.ctx.createGain();
+        this.rainGainNode.gain.setValueAtTime(0.001, this.ctx.currentTime);
+        this.rainGainNode.gain.exponentialRampToValueAtTime(0.08, this.ctx.currentTime + 2.0);
+
+        this.rainNoiseNode.connect(rainFilter);
+        rainFilter.connect(this.rainGainNode);
+        if (this.masterGain) {
+          this.rainGainNode.connect(this.masterGain);
+        }
+        this.rainNoiseNode.start();
+      } catch {}
+    } else {
+      if (this.rainNoiseNode && this.rainGainNode) {
+        try {
+          const t = this.ctx.currentTime;
+          this.rainGainNode.gain.setValueAtTime(this.rainGainNode.gain.value, t);
+          this.rainGainNode.gain.exponentialRampToValueAtTime(0.0001, t + 1.0);
+          setTimeout(() => {
+            this.rainNoiseNode?.stop();
+            this.rainNoiseNode?.disconnect();
+            this.rainNoiseNode = null;
+            this.rainGainNode = null;
+          }, 1100);
+        } catch {
+          this.rainNoiseNode = null;
+          this.rainGainNode = null;
+        }
+      }
+    }
+  }
+
   public getIsPlaying(): boolean {
     return this.isPlaying;
   }

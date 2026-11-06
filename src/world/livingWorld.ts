@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { MaterialLibrary } from './materials';
+import { checkObstacleCollision, isPointInDriveableArea } from './collisionSystem';
 
 export interface LivingWorldOptions {
   materials: MaterialLibrary;
@@ -35,8 +36,11 @@ interface VehicleEntity {
   yieldTimer: number;
   isYielding: boolean;
   actualSpeed: number;
-  type: 'sedan' | 'bus' | 'hatchback' | 'van' | 'suv' | 'ambulance' | 'hybrid';
+  type: 'sedan' | 'bus' | 'hatchback' | 'van' | 'suv' | 'ambulance' | 'hybrid' | 'truck';
   isBrakingForVehicle: boolean;
+  halfLength: number;
+  halfWidth: number;
+  collisionRadius: number;
 }
 
 interface PedestrianEntity {
@@ -77,6 +81,7 @@ export class LivingWorldManager {
   private pedestrians: PedestrianEntity[] = [];
   private lakeMesh: THREE.Mesh | null = null;
   private streetPointLights: THREE.PointLight[] = [];
+  private playerVehiclePosition: { x: number; z: number; radius: number } | null = null;
 
   constructor(options: LivingWorldOptions) {
     this.materials = options.materials;
@@ -97,138 +102,322 @@ export class LivingWorldManager {
 
   // ---------------------------------------------------------------------------
   // 1. VEHICLE SIMULATION FLEET (7 Distinct Procedural Vehicles)
-  // ---------------------------------------------------------------------------
   private initVehicles() {
-    // 1. Silver Electric Sedan (Main East-West Boulevard Loop)
+    // 1. Silver Electric Sedan (Inter-District Highway: Modern Village <-> Capital Town)
     const sedanPath: Waypoint[] = [
-      { x: -36, z: 2.0, speed: 7.2 },
-      { x: -16, z: 2.0, speed: 4.8, yieldDuration: 1.2 }, // stops safely at Town Center zebra crosswalk
-      { x: -5, z: 2.0, speed: 5.0 },
-      { x: 18, z: 2.0, speed: 7.2 },
-      { x: 38, z: 2.0, speed: 4.2, yieldDuration: 0.8 }, // brief turn yield at East End
-      // Turnaround loop at East End
-      { x: 40, z: 0.0, speed: 3.8 },
-      { x: 38, z: -2.0, speed: 4.5 },
-      // Westbound lane
-      { x: 18, z: -2.0, speed: 7.2 },
-      { x: -5, z: -2.0, speed: 5.0 },
-      { x: -16, z: -2.0, speed: 4.8, yieldDuration: 1.0 }, // stops at westbound crosswalk
-      { x: -36, z: -2.0, speed: 7.2 },
-      // Turnaround loop at West End
-      { x: -38, z: 0.0, speed: 3.8 },
+      { x: -5.0, z: -6.2, speed: 4.5 },
+      { x: -1.5, z: -4.5, speed: 4.5 },
+      { x: 1.0, z: -2.0, speed: 6.0 },
+      { x: 20.0, z: -2.0, speed: 7.5 },
+      { x: 34.0, z: -2.0, speed: 7.5 },
+      // Cross Bridge 2 (Capital Grand Bridge)
+      { x: 45.0, z: -2.0, speed: 7.0 },
+      { x: 55.0, z: -2.0, speed: 7.0 },
+      // Enter Capital Gateway Highway
+      { x: 75.0, z: -2.2, speed: 8.0 },
+      { x: 95.0, z: -2.2, speed: 6.5 },
+      // Circulate Capital Civic Roundabout (South to East)
+      { x: 102.0, z: -7.5, speed: 4.8 },
+      { x: 105.0, z: -9.0, speed: 4.8 },
+      { x: 112.0, z: -7.0, speed: 4.8 },
+      { x: 118.0, z: -2.2, speed: 5.5 },
+      // Capital Grand Boulevard East
+      { x: 135.0, z: -2.2, speed: 7.5 },
+      { x: 155.0, z: -2.2, speed: 4.5, yieldDuration: 1.2 }, // Capital East terminus yield
+      // Turnaround loop
+      { x: 158.0, z: 0.0, speed: 3.5 },
+      { x: 155.0, z: 2.2, speed: 4.5 },
+      // Westbound on Capital Grand Boulevard
+      { x: 135.0, z: 2.2, speed: 7.5 },
+      { x: 118.0, z: 2.2, speed: 5.5 },
+      // Circulate Capital Roundabout (North to West)
+      { x: 112.0, z: 7.0, speed: 4.8 },
+      { x: 105.0, z: 9.0, speed: 4.8 },
+      { x: 98.0, z: 5.0, speed: 4.8 },
+      { x: 95.0, z: 2.2, speed: 6.5 },
+      // Capital Gateway Highway Westbound
+      { x: 75.0, z: 2.2, speed: 8.0 },
+      { x: 60.0, z: 2.2, speed: 7.0 },
+      // Cross Bridge 2 Westbound
+      { x: 50.0, z: 2.0, speed: 7.0 },
+      { x: 38.0, z: 2.0, speed: 7.0 },
+      // Modern Village East Boulevard Westbound
+      { x: 20.0, z: 2.0, speed: 7.5 },
+      { x: 1.0, z: 2.0, speed: 5.5 },
+      // Modern Roundabout North to South arc
+      { x: -1.5, z: 4.5, speed: 4.2 },
+      { x: -5.0, z: 6.2, speed: 4.2 },
+      { x: -8.5, z: 4.5, speed: 4.2 },
+      { x: -11.0, z: 2.0, speed: 4.5 },
+      { x: -11.0, z: -2.0, speed: 4.5 },
+      { x: -8.5, z: -4.5, speed: 4.2 },
     ];
     this.createVehicle(sedanPath, this.materials.carPaintWhite, 'sedan', 0.85);
 
-    // 2. Cyan City Eco Bus (North-South Boulevard Transit Loop)
+    // 2. Cyan City Eco Bus (Inter-District Transit Line: Capital Bus Terminal <-> Modern Village)
     const busPath: Waypoint[] = [
-      { x: -3.2, z: -24, speed: 5.0 },
-      { x: -3.2, z: -4, speed: 3.6, yieldDuration: 2.2 }, // transit passenger stop near civic plaza
-      { x: -3.2, z: 8, speed: 5.2 },
-      { x: -3.2, z: 32, speed: 5.2 },
-      { x: -3.2, z: 52, speed: 3.5, yieldDuration: 2.0 }, // residential north neighborhood passenger terminus
-      // Turn loop
-      { x: -5.0, z: 54, speed: 2.8 },
-      { x: -6.8, z: 52, speed: 3.5 },
-      // Southbound lane
-      { x: -6.8, z: 32, speed: 5.2 },
-      { x: -6.8, z: 8, speed: 5.2 },
-      { x: -6.8, z: -4, speed: 3.6, yieldDuration: 2.0 }, // southbound civic stop
-      { x: -6.8, z: -24, speed: 5.0 },
-      // South loop
-      { x: -5.0, z: -26, speed: 2.8 },
+      { x: 88.0, z: -16.0, speed: 3.5, yieldDuration: 2.5 }, // Capital Transit Terminal Bay 1
+      { x: 88.0, z: -28.0, speed: 4.5 },
+      { x: 98.0, z: -28.0, speed: 5.0 },
+      { x: 105.0, z: -28.0, speed: 4.5 },
+      { x: 105.0, z: -14.0, speed: 5.0 },
+      // Capital Roundabout to Highway
+      { x: 102.0, z: -7.5, speed: 4.2 },
+      { x: 95.0, z: -2.2, speed: 5.5 },
+      { x: 75.0, z: -2.2, speed: 6.5 },
+      // Bridge 2 Westbound
+      { x: 55.0, z: -2.0, speed: 6.0 },
+      { x: 45.0, z: -2.0, speed: 6.0 },
+      // Modern Boulevard Westbound
+      { x: 20.0, z: -2.0, speed: 6.5 },
+      { x: 1.0, z: -2.0, speed: 5.0 },
+      // Modern Roundabout to North Boulevard
+      { x: -1.5, z: -4.5, speed: 4.0 },
+      { x: -5.0, z: -6.2, speed: 4.0 },
+      { x: -8.5, z: -4.5, speed: 4.0 },
+      { x: -11.0, z: 0.0, speed: 4.0 },
+      // Northbound on Modern Boulevard
+      { x: -6.8, z: 10.0, speed: 5.0 },
+      { x: -6.8, z: 30.0, speed: 5.2 },
+      { x: -6.8, z: 52.0, speed: 3.5, yieldDuration: 2.0 }, // Modern Residential passenger stop
+      // Turn loop at North end
+      { x: -5.0, z: 54.0, speed: 2.8 },
+      { x: -3.2, z: 52.0, speed: 3.5 },
+      // Southbound on Modern Boulevard
+      { x: -3.2, z: 30.0, speed: 5.2 },
+      { x: -3.2, z: 10.0, speed: 5.0 },
+      // Modern Roundabout to East Boulevard
+      { x: -1.5, z: 4.5, speed: 4.0 },
+      { x: 1.0, z: 2.0, speed: 5.0 },
+      { x: 20.0, z: 2.0, speed: 6.5 },
+      { x: 38.0, z: 2.0, speed: 6.5 },
+      // Bridge 2 Eastbound
+      { x: 50.0, z: 2.2, speed: 6.0 },
+      { x: 60.0, z: 2.2, speed: 6.0 },
+      // Capital Gateway Highway
+      { x: 75.0, z: 2.2, speed: 6.5 },
+      { x: 95.0, z: 2.2, speed: 5.5 },
+      // Capital Roundabout North arc to South Connector
+      { x: 105.0, z: 9.0, speed: 4.2 },
+      { x: 112.0, z: 7.0, speed: 4.2 },
+      { x: 114.0, z: 0.0, speed: 4.2 },
+      { x: 105.0, z: -14.0, speed: 5.0 },
+      { x: 105.0, z: -28.0, speed: 4.5 },
+      { x: 98.0, z: -28.0, speed: 4.5 },
+      { x: 88.0, z: -28.0, speed: 4.0 },
+      { x: 88.0, z: -16.0, speed: 3.5 },
     ];
     this.createVehicle(busPath, this.materials.carPaintBlue, 'bus', 1.15);
 
-    // 3. Crimson Compact Hatchback (Residential Cul-de-sac & Roundabout loop)
+    // 3. Crimson Compact Hatchback (Modern Residential District Loop)
     const hatchPath: Waypoint[] = [
-      { x: -48, z: 38.5, speed: 5.8 },
-      { x: -28, z: 38.5, speed: 5.8 },
-      { x: -12, z: 38.5, speed: 4.2 },
-      // Curve south along neighborhood connector
-      { x: -6.8, z: 26, speed: 4.8 },
-      { x: -6.8, z: 10, speed: 4.5 },
-      { x: -10, z: 3.0, speed: 3.5, yieldDuration: 1.2 }, // yield at roundabout entry stop line
-      // Curve through roundabout perimeter
-      { x: -12, z: -1.8, speed: 4.2 },
-      { x: -6.8, z: -2.0, speed: 4.8 },
-      // Return northbound
-      { x: -3.2, z: 10, speed: 4.8 },
-      { x: -3.2, z: 26, speed: 4.8 },
-      { x: -10, z: 41.5, speed: 4.2 },
-      { x: -28, z: 41.5, speed: 5.8 },
-      { x: -48, z: 41.5, speed: 3.8 },
-      { x: -50, z: 40.0, speed: 2.8 },
+      { x: -50.0, z: 32.0, speed: 4.0 },
+      { x: -28.0, z: 32.0, speed: 5.5 },
+      { x: -10.0, z: 32.0, speed: 4.2 },
+      { x: -6.8, z: 26.0, speed: 4.8 },
+      { x: -6.8, z: 10.0, speed: 4.5 },
+      { x: -8.5, z: 4.5, speed: 3.5, yieldDuration: 1.0 },
+      { x: -11.2, z: 0.0, speed: 4.0 },
+      { x: -8.5, z: -4.5, speed: 4.2 },
+      { x: -5.0, z: -6.2, speed: 4.2 },
+      { x: -1.5, z: -4.5, speed: 4.2 },
+      { x: 1.2, z: 0.0, speed: 4.0 },
+      { x: -1.5, z: 4.5, speed: 4.2 },
+      { x: -3.2, z: 10.0, speed: 4.8 },
+      { x: -3.2, z: 30.0, speed: 4.8 },
+      { x: -3.2, z: 58.0, speed: 4.8 },
+      { x: -10.0, z: 62.0, speed: 4.2 },
+      { x: -28.0, z: 62.0, speed: 5.5 },
+      { x: -50.0, z: 62.0, speed: 4.0 },
+      { x: -50.0, z: 47.0, speed: 4.5 },
     ];
     this.createVehicle(hatchPath, this.materials.carPaintRed, 'hatchback', 0.78);
 
-    // 4. Amber Delivery Van (Town Center Commercial Delivery Route)
+    // 4. Amber Delivery Van (Town Center Lake Parking Dock <-> Capital Logistics)
     const vanPath: Waypoint[] = [
-      { x: -26, z: -2.0, speed: 5.2 },
-      { x: -18, z: -2.0, speed: 3.8 },
-      { x: -14, z: 4.0, speed: 3.0, yieldDuration: 2.6 }, // curbside delivery loading stop outside shops
-      { x: -14, z: 12.0, speed: 4.5 },
-      { x: -22, z: 12.0, speed: 4.8 },
-      { x: -32, z: 12.0, speed: 4.8 },
-      { x: -34, z: 4.0, speed: 3.8 },
-      { x: -34, z: -2.0, speed: 3.8 },
+      { x: -21.5, z: -20.5, speed: 3.0, yieldDuration: 2.0 }, // Modern Town Center delivery dock
+      { x: -21.5, z: -26.0, speed: 3.5 },
+      { x: -10.0, z: -26.0, speed: 4.5 },
+      { x: -5.0, z: -26.0, speed: 5.0 },
+      { x: -5.0, z: -15.0, speed: 5.0 },
+      { x: -5.0, z: -7.0, speed: 4.5 },
+      { x: -1.5, z: -4.5, speed: 4.0 },
+      { x: 1.2, z: 0.0, speed: 4.0 },
+      { x: 20.0, z: 2.0, speed: 6.0 },
+      // Cross Bridge 2 to Capital
+      { x: 50.0, z: 2.2, speed: 6.0 },
+      { x: 75.0, z: 2.2, speed: 6.5 },
+      { x: 95.0, z: 2.2, speed: 5.5 },
+      // Capital Roundabout South to Terminal bay
+      { x: 105.0, z: 9.0, speed: 4.0 },
+      { x: 112.0, z: 7.0, speed: 4.0 },
+      { x: 105.0, z: -14.0, speed: 4.5 },
+      { x: 105.0, z: -28.0, speed: 4.5 },
+      { x: 88.0, z: -28.0, speed: 4.0 },
+      { x: 88.0, z: -16.0, speed: 3.5, yieldDuration: 2.0 }, // Capital logistics bay
+      { x: 88.0, z: -28.0, speed: 4.0 },
+      { x: 98.0, z: -28.0, speed: 4.5 },
+      { x: 105.0, z: -28.0, speed: 4.5 },
+      { x: 105.0, z: -14.0, speed: 5.0 },
+      { x: 95.0, z: -2.2, speed: 5.5 },
+      // Return across Bridge 2
+      { x: 55.0, z: -2.0, speed: 6.0 },
+      { x: 20.0, z: -2.0, speed: 6.0 },
+      { x: 1.0, z: -2.0, speed: 5.0 },
+      { x: -1.5, z: -4.5, speed: 4.0 },
+      { x: -5.0, z: -6.2, speed: 4.0 },
+      { x: -5.0, z: -15.0, speed: 5.0 },
+      { x: -5.0, z: -26.0, speed: 5.0 },
+      { x: -10.0, z: -26.0, speed: 4.5 },
+      { x: -21.5, z: -26.0, speed: 3.5 },
     ];
     this.createVehicle(vanPath, this.materials.sportCourtOrange, 'van', 0.95);
 
     // 5. Dark Slate Modern Crossover SUV (Lake Shore Scenic Drive)
     const suvPath: Waypoint[] = [
-      { x: -22, z: -26.5, speed: 6.2 },
-      { x: -6, z: -26.5, speed: 6.2 },
-      { x: 10, z: -26.5, speed: 6.2 },
-      { x: 22, z: -26.5, speed: 3.8, yieldDuration: 1.5 }, // lakeside scenic pullover stop
-      // Turn loop
-      { x: 24, z: -28.0, speed: 3.2 },
-      { x: 22, z: -29.5, speed: 3.8 },
-      { x: 10, z: -29.5, speed: 6.2 },
-      { x: -6, z: -29.5, speed: 6.2 },
-      { x: -22, z: -29.5, speed: 3.8 },
-      { x: -24, z: -28.0, speed: 3.2 },
+      { x: -22.0, z: -27.5, speed: 6.0 },
+      { x: -6.0, z: -27.5, speed: 6.0 },
+      { x: 10.0, z: -27.5, speed: 6.0 },
+      { x: 22.0, z: -27.5, speed: 3.8, yieldDuration: 1.5 },
+      { x: 24.0, z: -29.0, speed: 3.2 },
+      { x: 22.0, z: -30.5, speed: 3.8 },
+      { x: 10.0, z: -30.5, speed: 6.0 },
+      { x: -6.0, z: -30.5, speed: 6.0 },
+      { x: -22.0, z: -30.5, speed: 3.8 },
+      { x: -24.0, z: -29.0, speed: 3.2 },
     ];
     this.createVehicle(suvPath, this.materials.modernDarkSlate, 'suv', 0.9);
 
-    // 6. Emergency Healthcare Ambulance (Medical Clinic Route with Flashing Beacons)
+    // 6. Emergency Healthcare Ambulance (Regional Hospital <-> Modern Clinic <-> Rural Dispensary)
     const ambulancePath: Waypoint[] = [
-      { x: -26, z: 16.0, speed: 3.5, yieldDuration: 2.0 }, // Clinic emergency bay drop-off
-      { x: -18, z: 16.0, speed: 5.5 },
-      { x: -6.8, z: 12.0, speed: 6.5 },
-      { x: -6.8, z: 2.0, speed: 5.0 },
-      { x: -2.0, z: 2.0, speed: 6.5 },
-      { x: 20.0, z: 2.0, speed: 7.5 },
-      { x: 34.0, z: 2.0, speed: 4.5, yieldDuration: 1.0 }, // Central Park east junction check
-      { x: 34.0, z: -2.0, speed: 4.5 },
-      { x: 20.0, z: -2.0, speed: 7.5 },
-      { x: -2.0, z: -2.0, speed: 6.5 },
-      { x: -6.8, z: -2.0, speed: 5.0 },
-      { x: -16.0, z: 2.0, speed: 5.5 },
-      { x: -26.0, z: 10.0, speed: 4.5 },
+      { x: 88.0, z: 20.0, speed: 3.5, yieldDuration: 2.0 }, // Capital General Hospital ER bay
+      { x: 88.0, z: 34.0, speed: 5.5 },
+      { x: 102.0, z: 34.0, speed: 5.5 },
+      { x: 105.0, z: 25.0, speed: 6.0 },
+      { x: 105.0, z: 12.0, speed: 6.0 },
+      { x: 98.0, z: 5.0, speed: 5.5 },
+      { x: 95.0, z: 2.2, speed: 6.5 },
+      // Cross Bridge 2 Westbound
+      { x: 50.0, z: 2.0, speed: 7.0 },
+      { x: 38.0, z: 2.0, speed: 7.0 },
+      { x: 18.0, z: 2.0, speed: 7.0 },
+      { x: 1.0, z: 2.0, speed: 5.5 },
+      // Modern Village Roundabout
+      { x: -5.0, z: 6.2, speed: 4.5 },
+      { x: -8.5, z: 4.5, speed: 4.5 },
+      // Modern Clinic Emergency Bay Drop-off (Clear roadway corridor, outside building)
+      { x: -6.8, z: 2.0, speed: 5.5 },
+      { x: -20.0, z: 2.0, speed: 5.0 },
+      { x: -26.0, z: 2.0, speed: 3.5, yieldDuration: 2.0 }, // Modern clinic boulevard stop
+      { x: -36.0, z: 2.0, speed: 6.0 },
+      // West River Bridge 1
+      { x: -44.0, z: 2.0, speed: 6.0 },
+      { x: -54.0, z: 1.8, speed: 6.0 },
+      { x: -64.0, z: 1.8, speed: 6.0 },
+      // Rural Village Main Road
+      { x: -85.0, z: 1.8, speed: 6.5 },
+      { x: -110.0, z: 1.8, speed: 5.5 },
+      { x: -110.0, z: -25.0, speed: 5.0 },
+      { x: -110.0, z: -46.0, speed: 4.0 },
+      { x: -95.0, z: -46.0, speed: 3.2, yieldDuration: 2.0 }, // Rural Dispensary drop-off
+      { x: -95.0, z: -48.0, speed: 3.5 },
+      { x: -110.0, z: -48.0, speed: 4.0 },
+      { x: -110.0, z: 0.0, speed: 5.0 },
+      // Return East on Rural Main Road
+      { x: -85.0, z: -1.8, speed: 6.5 },
+      // Bridge 1 Eastbound
+      { x: -64.0, z: -1.8, speed: 6.0 },
+      { x: -54.0, z: -1.8, speed: 6.0 },
+      { x: -44.0, z: -2.0, speed: 6.0 },
+      // Modern Village Westbound
+      { x: -36.0, z: -2.0, speed: 6.5 },
+      { x: -16.0, z: -2.0, speed: 5.5 },
+      { x: -11.0, z: -2.0, speed: 5.0 },
+      { x: -5.0, z: -6.2, speed: 4.5 },
+      { x: -1.5, z: -4.5, speed: 4.5 },
+      { x: 1.0, z: -2.0, speed: 6.0 },
+      { x: 20.0, z: -2.0, speed: 7.0 },
+      { x: 38.0, z: -2.0, speed: 7.0 },
+      // Bridge 2 Eastbound to Capital Hospital
+      { x: 50.0, z: -2.2, speed: 7.0 },
+      { x: 75.0, z: -2.2, speed: 7.5 },
+      { x: 95.0, z: -2.2, speed: 6.0 },
+      { x: 102.0, z: -7.5, speed: 4.5 },
+      { x: 105.0, z: -9.0, speed: 4.5 },
+      { x: 114.0, z: 0.0, speed: 4.5 },
+      { x: 105.0, z: 12.0, speed: 5.5 },
+      { x: 105.0, z: 34.0, speed: 5.5 },
+      { x: 88.0, z: 34.0, speed: 5.0 },
     ];
     this.createVehicle(ambulancePath, this.materials.carPaintWhite, 'ambulance', 0.92);
 
-    // 7. Emerald Compact Hybrid (Residential North Avenue & Civic Loop)
+    // 7. Emerald Compact Hybrid (Capital North University & High-Rise Loop)
     const hybridPath: Waypoint[] = [
-      { x: -42, z: 58.0, speed: 5.5 },
-      { x: -20, z: 58.0, speed: 5.5 },
-      { x: -3.2, z: 50.0, speed: 4.2 },
-      { x: -3.2, z: 20.0, speed: 5.5 },
-      { x: -3.2, z: 2.0, speed: 4.5 },
-      { x: -12.0, z: 2.0, speed: 4.5 },
-      { x: -28.0, z: 2.0, speed: 5.5 },
-      { x: -36.0, z: 2.0, speed: 4.0 },
-      { x: -36.0, z: 14.0, speed: 4.5 },
-      { x: -36.0, z: 38.0, speed: 5.0 },
-      { x: -42, z: 54.0, speed: 4.0 },
+      { x: 88.0, z: 34.0, speed: 5.5 },
+      { x: 115.0, z: 34.0, speed: 5.5 },
+      { x: 145.0, z: 34.0, speed: 5.5 },
+      { x: 156.0, z: 34.0, speed: 4.2 },
+      { x: 156.0, z: 10.0, speed: 5.0 },
+      { x: 156.0, z: -2.2, speed: 4.5 },
+      { x: 135.0, z: -2.2, speed: 6.0 },
+      { x: 118.0, z: -2.2, speed: 5.5 },
+      { x: 112.0, z: 7.0, speed: 4.5 },
+      { x: 105.0, z: 9.0, speed: 4.5 },
+      { x: 105.0, z: 25.0, speed: 5.5 },
+      { x: 105.0, z: 34.0, speed: 5.5 },
+      { x: 88.0, z: 34.0, speed: 5.0 },
     ];
     this.createVehicle(hybridPath, this.materials.carPaintEmerald, 'hybrid', 0.82);
+
+    // 8. Rural Farm Utility Truck (District 1: Rural Village Main Road & Farmsteads)
+    const truckPath: Waypoint[] = [
+      { x: -140.0, z: 50.0, speed: 4.2, yieldDuration: 2.0 }, // Farmstead Barn loading point
+      { x: -120.0, z: 50.0, speed: 4.8 },
+      { x: -110.0, z: 50.0, speed: 4.5 },
+      { x: -110.0, z: 30.0, speed: 5.0 },
+      { x: -110.0, z: 10.0, speed: 4.5 },
+      // Merge onto Rural Main Dirt Road Westbound
+      { x: -115.0, z: 1.8, speed: 5.5 },
+      { x: -135.0, z: 1.8, speed: 5.5 },
+      { x: -155.0, z: 1.8, speed: 4.0, yieldDuration: 1.5 }, // West turnabout stop
+      { x: -158.0, z: 0.0, speed: 3.2 },
+      { x: -155.0, z: -1.8, speed: 4.0 },
+      // Eastbound on Main Dirt Road
+      { x: -135.0, z: -1.8, speed: 5.5 },
+      { x: -115.0, z: -1.8, speed: 5.0 },
+      // Turn South by the Tea Stall & Village Well
+      { x: -110.0, z: -10.0, speed: 4.5 },
+      { x: -110.0, z: -30.0, speed: 4.5 },
+      { x: -110.0, z: -46.0, speed: 3.8 },
+      { x: -125.0, z: -46.0, speed: 3.2, yieldDuration: 2.0 }, // Rural School turnaround
+      { x: -135.0, z: -46.0, speed: 3.5 },
+      { x: -110.0, z: -46.0, speed: 4.0 },
+      { x: -110.0, z: 0.0, speed: 4.5 },
+      { x: -110.0, z: 20.0, speed: 5.0 },
+      { x: -110.0, z: 50.0, speed: 4.5 },
+      { x: -125.0, z: 50.0, speed: 4.5 },
+    ];
+    this.createVehicle(truckPath, this.materials.timberBench, 'truck', 1.0);
+
+    // Startup Route & Spawn Validation: Ensure all routes avoid static obstacles and stay in driveable areas
+    for (let idx = 0; idx < this.vehicles.length; idx++) {
+      const v = this.vehicles[idx];
+      for (let wpIdx = 0; wpIdx < v.path.length; wpIdx++) {
+        const wp = v.path[wpIdx];
+        if (!isPointInDriveableArea(wp.x, wp.z)) {
+          console.warn(`[LivingWorld] Vehicle ${idx} (${v.type}) WP#${wpIdx} (${wp.x}, ${wp.z}) is outside drivable area`);
+        }
+        if (checkObstacleCollision(wp.x, wp.z, v.collisionRadius).collided) {
+          console.warn(`[LivingWorld] Vehicle ${idx} (${v.type}) WP#${wpIdx} (${wp.x}, ${wp.z}) overlaps obstacle`);
+        }
+      }
+    }
   }
 
   private createVehicle(
     path: Waypoint[],
     paintMaterial: THREE.Material,
-    type: 'sedan' | 'bus' | 'hatchback' | 'van' | 'suv' | 'ambulance' | 'hybrid',
+    type: 'sedan' | 'bus' | 'hatchback' | 'van' | 'suv' | 'ambulance' | 'hybrid' | 'truck',
     scale: number
   ) {
     const vGroup = new THREE.Group();
@@ -244,10 +433,11 @@ export class LivingWorldManager {
     const isBus = type === 'bus';
     const isVan = type === 'van';
     const isAmbulance = type === 'ambulance';
+    const isTruck = type === 'truck';
 
-    const length = isBus ? 7.6 : isVan || isAmbulance ? 5.0 : 4.2;
-    const width = isBus ? 2.4 : isVan || isAmbulance ? 2.1 : 1.95;
-    const height = isBus ? 2.3 : isVan || isAmbulance ? 2.0 : 1.35;
+    const length = isBus ? 7.6 : isTruck ? 5.4 : isVan || isAmbulance ? 5.0 : 4.2;
+    const width = isBus ? 2.4 : isTruck || isVan || isAmbulance ? 2.1 : 1.95;
+    const height = isBus ? 2.3 : isTruck ? 2.1 : isVan || isAmbulance ? 2.0 : 1.35;
     const wheelRadius = isBus ? 0.44 : 0.35;
 
     // 1. Lower Chassis / Main Body
@@ -396,6 +586,10 @@ export class LivingWorldManager {
     vGroup.scale.set(scale, scale, scale);
     this.vehicleGroup.add(vGroup);
 
+    const halfLength = (length * scale) * 0.5;
+    const halfWidth = (width * scale) * 0.5;
+    const collisionRadius = Math.max(halfLength, halfWidth);
+
     this.vehicles.push({
       group: vGroup,
       wheels,
@@ -415,6 +609,9 @@ export class LivingWorldManager {
       actualSpeed: path[0].speed || 6.0,
       type,
       isBrakingForVehicle: false,
+      halfLength,
+      halfWidth,
+      collisionRadius,
     });
   }
 
@@ -789,8 +986,10 @@ export class LivingWorldManager {
         continue;
       }
 
-      // Collision Avoidance / Safe Following Distance Check
+      // Collision Avoidance / Safe Dynamic Bumper-to-Bumper Distance Check
       let tooClose = false;
+      let shouldSlowDown = false;
+      let slowTargetSpeed = 0;
       const myX = v.group.position.x;
       const myZ = v.group.position.z;
       const forwardX = Math.sin(v.heading);
@@ -803,12 +1002,57 @@ export class LivingWorldManager {
         const oz = other.group.position.z - myZ;
         const dist = Math.hypot(ox, oz);
 
-        // Check if other vehicle is directly ahead within 6.5m and in the forward cone
-        if (dist < 6.5) {
+        // Dynamic bumper-to-bumper distance based on vehicle dimensions
+        const safeStopDist = v.halfLength + other.halfLength + 2.5;
+        const safeSlowDist = safeStopDist + 4.5;
+        const lateralClearance = v.collisionRadius + other.collisionRadius + 1.2;
+
+        if (dist < safeSlowDist) {
           const dot = (ox * forwardX + oz * forwardZ) / Math.max(0.001, dist);
-          if (dot > 0.65) {
+          if (dot > 0.50) {
+            // Forward obstacle in driving lane
+            if (dist < safeStopDist) {
+              tooClose = true;
+              break;
+            } else {
+              shouldSlowDown = true;
+              slowTargetSpeed = Math.min(v.actualSpeed, other.actualSpeed * 0.85);
+            }
+          } else if (dist < lateralClearance) {
+            // Lateral convergence or intersection approach:
+            // The vehicle with higher index or lower current speed yields safely
+            if (i > j || v.actualSpeed < other.actualSpeed) {
+              tooClose = true;
+              break;
+            } else {
+              shouldSlowDown = true;
+              slowTargetSpeed = Math.min(v.actualSpeed, 1.8);
+            }
+          }
+        }
+      }
+
+      // Also check against player-controlled EV
+      if (!tooClose && this.playerVehiclePosition) {
+        const ox = this.playerVehiclePosition.x - myX;
+        const oz = this.playerVehiclePosition.z - myZ;
+        const dist = Math.hypot(ox, oz);
+        const safeStopDist = v.halfLength + this.playerVehiclePosition.radius + 2.6;
+        const safeSlowDist = safeStopDist + 4.5;
+        const playerLateralClearance = v.collisionRadius + this.playerVehiclePosition.radius + 1.0;
+
+        if (dist < safeSlowDist) {
+          const dot = (ox * forwardX + oz * forwardZ) / Math.max(0.001, dist);
+          if (dot > 0.50) {
+            if (dist < safeStopDist) {
+              tooClose = true;
+            } else {
+              shouldSlowDown = true;
+              slowTargetSpeed = Math.min(v.actualSpeed, 2.0);
+            }
+          } else if (dist < playerLateralClearance) {
+            // Player EV is crossing path or immediately adjacent
             tooClose = true;
-            break;
           }
         }
       }
@@ -832,7 +1076,10 @@ export class LivingWorldManager {
       const segLen = Math.hypot(dx, dz);
 
       if (segLen > 0.001) {
-        const targetSpeed = pA.speed || v.baseSpeed;
+        let targetSpeed = pA.speed || v.baseSpeed;
+        if (shouldSlowDown) {
+          targetSpeed = Math.min(targetSpeed, slowTargetSpeed);
+        }
         // Smooth progressive acceleration up to cruising speed
         v.actualSpeed += (targetSpeed - v.actualSpeed) * Math.min(1.0, dt * 3.2);
 
@@ -981,9 +1228,26 @@ export class LivingWorldManager {
     }
   }
 
+  public setPlayerVehicle(pos: THREE.Vector3 | null, radius: number = 1.35) {
+    if (!pos) {
+      this.playerVehiclePosition = null;
+    } else {
+      this.playerVehiclePosition = { x: pos.x, z: pos.z, radius };
+    }
+  }
+
+  public getTrafficObstacles(): { x: number; z: number; radius: number }[] {
+    return this.vehicles.map((v) => ({
+      x: v.group.position.x,
+      z: v.group.position.z,
+      radius: v.collisionRadius,
+    }));
+  }
+
   public dispose() {
     this.vehicles = [];
     this.pedestrians = [];
     this.streetPointLights = [];
+    this.playerVehiclePosition = null;
   }
 }
