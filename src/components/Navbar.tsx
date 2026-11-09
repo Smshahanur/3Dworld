@@ -1,5 +1,5 @@
 import React from 'react';
-import { Compass, Volume2, VolumeX, Sun, Moon, Sunrise, Sunset, Info, Eye, Hammer, Users } from 'lucide-react';
+import { Compass, Volume2, VolumeX, Sun, Moon, Sunrise, Sunset, Info, Eye, Hammer, Users, User } from 'lucide-react';
 import { LightingMode } from '../types';
 
 interface NavbarProps {
@@ -69,6 +69,14 @@ export const Navbar: React.FC<NavbarProps> = ({
       case 'cyber-night':
       default:
         return <Moon className="w-4 h-4 text-cyan-300" />;
+    }
+  };
+
+  const handleCreatorAction = () => {
+    if (onCreatorClick) {
+      onCreatorClick();
+    } else {
+      onAboutClick();
     }
   };
 
@@ -155,7 +163,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         )}
         <button
           onClick={onDiscoverClick}
-          aria-label="Discover 3DWorld Districts and Buildings (Town Center, Residential, Central Park, Botanical Garden, Lake District)"
+          aria-label="Discover 3DWorld Districts and Buildings"
           className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium text-cyan-300 hover:text-cyan-200 hover:bg-cyan-950/40 transition-colors cursor-pointer"
         >
           <Compass className="w-3.5 h-3.5" />
@@ -171,7 +179,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </button>
       </nav>
 
-      {/* Quick controls: Build mode toggle on mobile, Lighting mode, Sound toggle, Cinema */}
+      {/* Quick controls: Creator pill, Build mode, Lighting, Sound, About */}
       <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2">
         {onToggleMultiplayer && (
           <button
@@ -203,6 +211,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span>{isBuildMode ? 'Exit' : 'Build'}</span>
           </button>
         )}
+
         {/* Lighting preset cycle button */}
         <button
           onClick={onCycleLighting}
@@ -230,11 +239,12 @@ export const Navbar: React.FC<NavbarProps> = ({
           {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
         </button>
 
-        {/* About button on mobile */}
+        {/* About button */}
         <button
           onClick={onAboutClick}
           aria-label="About 3DWorld"
-          className="md:hidden p-2 rounded-full glass-panel border border-white/10 text-slate-300 hover:text-white cursor-pointer"
+          title="About 3DWorld"
+          className="p-2 rounded-full glass-panel border border-white/10 text-slate-300 hover:text-white cursor-pointer"
         >
           <Info className="w-4 h-4" />
         </button>

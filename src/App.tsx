@@ -26,10 +26,19 @@ import { DrivingDiagnosticPanel } from './components/DrivingDiagnosticPanel';
 import { multiplayerService } from './multiplayer/multiplayerService';
 import { PlayerData, ChatMessage, MultiplayerUser } from './multiplayer/types';
 import { AboutModal } from './components/AboutModal';
+import { PavilionInteractionPoint } from './world/creatorPavilionInterior';
+import { PavilionInteractionModal } from './components/PavilionInteractionModal';
+import { PavilionHUD } from './components/PavilionHUD';
 import { Footer } from './components/Footer';
 import { LoadingScreen } from './components/LoadingScreen';
 import { WorldMinimap } from './components/WorldMinimap';
 import { WebGLFallback } from './components/WebGLFallback';
+import { WorldInteractionPrompt } from './components/WorldInteractionPrompt';
+import { NPCInteractionModal } from './components/NPCInteractionModal';
+import { ContextualLocationModal } from './components/ContextualLocationModal';
+import { GestureToolbar } from './components/GestureToolbar';
+import { ActiveNPCEntity, WorldInteractionSpot } from './world/npcBehaviorSystem';
+import { HumanoidGesture } from './world/humanoidCharacterSystem';
 
 export default function App() {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -66,6 +75,22 @@ export default function App() {
   const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [followCamera, setFollowCamera] = useState(true);
   const [selectedRemotePlayer, setSelectedRemotePlayer] = useState<PlayerData | null>(null);
+  const [avatarCurrentSpeed, setAvatarCurrentSpeed] = useState(0);
+  const [movementSpeedMultiplier, setMovementSpeedMultiplier] = useState(1.0);
+  const [lookSensitivityMultiplier, setLookSensitivityMultiplier] = useState(1.0);
+
+  // Monitor real-time local avatar movement velocity
+  useEffect(() => {
+    if (!isMultiplayerActive) {
+      setAvatarCurrentSpeed(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      const spd = sceneManagerRef.current?.avatars?.getCurrentSpeed() ?? 0;
+      setAvatarCurrentSpeed(spd);
+    }, 120);
+    return () => clearInterval(interval);
+  }, [isMultiplayerActive]);
 
   // Persistent World & Simulation Preferences
   const [lightingMode, setLightingMode] = useState<LightingMode>('day');
@@ -120,10 +145,27 @@ export default function App() {
   const [selectedBuilding, setSelectedBuilding] = useState<BuildingInfo | null>(null);
   const [hoveredLandmark, setHoveredLandmark] = useState<string | null>(null);
 
-  // Modals & Panels
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [aboutInitialTab, setAboutInitialTab] = useState<'creator' | 'project'>('creator');
+
+  // Explorable Creator Pavilion State
+  const [isInsidePavilion, setIsInsidePavilion] = useState(false);
+  const [nearPavilionPoint, setNearPavilionPoint] = useState<PavilionInteractionPoint | null>(null);
+  const [activePavilionPoint, setActivePavilionPoint] = useState<PavilionInteractionPoint | null>(null);
+  const [isPavilionRooftop, setIsPavilionRooftop] = useState(false);
+  const previousWorldStateRef = useRef<{
+    cameraPos: [number, number, number];
+    target: [number, number, number];
+    viewMode: ViewMode;
+  } | null>(null);
+
+  // Living Universe & NPC Proximity State
+  const [nearbyNPC, setNearbyNPC] = useState<ActiveNPCEntity | null>(null);
+  const [activeNPCModal, setActiveNPCModal] = useState<ActiveNPCEntity | null>(null);
+  const [nearbySpot, setNearbySpot] = useState<WorldInteractionSpot | null>(null);
+  const [activeSpotModal, setActiveSpotModal] = useState<WorldInteractionSpot | null>(null);
+  const [playerGesture, setPlayerGesture] = useState<HumanoidGesture>('none');
 
   // Check WebGL availability
   useEffect(() => {
@@ -161,14 +203,16 @@ export default function App() {
         setSelectedBuilding(null);
         soundManager.playInteractSound();
         if (loc.id === 'creator-pavilion') {
-          setIsAboutOpen(true);
+          sm.enterCreatorPavilion();
+          setViewMode('street');
         }
       },
       onSelectBuilding: (building) => {
         setSelectedBuilding(building);
         soundManager.playInteractSound();
         if (building?.id === 'creator-pavilion') {
-          setIsAboutOpen(true);
+          sm.enterCreatorPavilion();
+          setViewMode('street');
         }
       },
       onHoverLandmark: (name) => {
@@ -201,6 +245,34 @@ export default function App() {
       onVehicleSpeedChange: (speed, gear) => {
         setVehicleSpeed(speed);
         setVehicleGear(gear);
+      },
+      onNearPavilionInteraction: (pt) => {
+        setNearPavilionPoint(pt);
+      },
+      onSelectPavilionPoint: (pt) => {
+        setActivePavilionPoint(pt);
+        soundManager.playInteractSound();
+      },
+      onPavilionInsideChange: (inside) => {
+        setIsInsidePavilion(inside);
+      },
+      onNearNPC: (npc) => {
+        setNearbyNPC(npc);
+      },
+      onSelectNPC: (npc) => {
+        setActiveNPCModal(npc);
+        soundManager.playInteractSound();
+        sm.setNPCTalkingState(npc.profile.id, true);
+      },
+      onNearWorldSpot: (spot) => {
+        setNearbySpot(spot);
+      },
+      onSelectSpot: (spot) => {
+        setActiveSpotModal(spot);
+        soundManager.playInteractSound();
+      },
+      onPlayerGestureChange: (gesture) => {
+        setPlayerGesture(gesture);
       },
       onLoadingComplete: () => {
         clearInterval(progressTimer);
@@ -400,15 +472,65 @@ export default function App() {
 
   // Dedicated Creator Experience & 3D Creator Pavilion Navigation
   const handleOpenCreator = useCallback(() => {
-    const creatorLoc = LOCATIONS.find((l) => l.id === 'creator-pavilion');
-    if (creatorLoc) {
-      setActiveLocationId(creatorLoc.id);
-      setSelectedLandmark(creatorLoc);
-      setSelectedBuilding(null);
-      sceneManagerRef.current?.travelToLocation(creatorLoc);
+    // 1. Capture current world state before entering Creator Studio if outside
+    if (!isInsidePavilion && sceneManagerRef.current) {
+      const camState = sceneManagerRef.current.getCameraState();
+      previousWorldStateRef.current = {
+        cameraPos: [camState.position.x, camState.position.y, camState.position.z],
+        target: [camState.target.x, camState.target.y, camState.target.z],
+        viewMode,
+      };
     }
-    setIsAboutOpen(true);
+
+    // 2. Clear ALL popups, building selection, and drawer states so no old popup remains
+    setSelectedLandmark(null);
+    setSelectedBuilding(null);
+    setActiveLocationId(null);
+    setActivePavilionPoint(null);
+    setIsAboutOpen(false);
+    setIsDrawerOpen(false);
+
+    // 3. Smoothly navigate camera directly into Creator Studio interior
+    sceneManagerRef.current?.enterCreatorPavilion();
+    setViewMode('street');
+    setIsInsidePavilion(true);
+    setIsPavilionRooftop(false);
     soundManager.playInteractSound();
+  }, [isInsidePavilion, viewMode]);
+
+  const handleExitPavilion = useCallback(() => {
+    // Clear pavilion-specific states
+    setIsInsidePavilion(false);
+    setIsPavilionRooftop(false);
+    setActivePavilionPoint(null);
+
+    // Restore previous world state without resetting the visitor unnecessarily
+    if (previousWorldStateRef.current && sceneManagerRef.current) {
+      const prev = previousWorldStateRef.current;
+      sceneManagerRef.current.flyTo(prev.cameraPos, prev.target, 1.5);
+      setViewMode(prev.viewMode);
+      previousWorldStateRef.current = null;
+    } else {
+      sceneManagerRef.current?.exitCreatorPavilion();
+      setViewMode('street');
+    }
+    soundManager.playInteractSound();
+  }, []);
+
+  const handleTogglePavilionRooftop = useCallback(() => {
+    if (isPavilionRooftop) {
+      sceneManagerRef.current?.teleportPavilionGround();
+      setIsPavilionRooftop(false);
+    } else {
+      sceneManagerRef.current?.teleportPavilionRooftop();
+      setIsPavilionRooftop(true);
+    }
+    soundManager.playInteractSound();
+  }, [isPavilionRooftop]);
+
+  const handlePlayerGesture = useCallback((gesture: HumanoidGesture) => {
+    setPlayerGesture(gesture);
+    sceneManagerRef.current?.setLocalPlayerGesture(gesture);
   }, []);
 
   // Subscribe to Multiplayer Service updates & Community Shared Builds
@@ -815,7 +937,7 @@ export default function App() {
       )}
 
       {/* 7. Clickable Building Information Card */}
-      {!cinemaMode && !isBuildMode && (
+      {!cinemaMode && !isBuildMode && !isInsidePavilion && (
         <BuildingInfoCard
           building={selectedBuilding}
           onClose={() => {
@@ -922,6 +1044,14 @@ export default function App() {
             unreadChatCount={unreadChatCount}
             onLeaveMultiplayer={handleLeaveMultiplayer}
             onSelectPlayer={(p) => setSelectedRemotePlayer(p)}
+            currentSpeed={avatarCurrentSpeed}
+            speedMultiplier={movementSpeedMultiplier}
+            sensitivityMultiplier={lookSensitivityMultiplier}
+            onUpdateMovementSettings={(speedMult, sensMult) => {
+              setMovementSpeedMultiplier(speedMult);
+              setLookSensitivityMultiplier(sensMult);
+              sceneManagerRef.current?.avatars?.setMovementSettings(speedMult, sensMult);
+            }}
           />
 
           <MultiplayerChat
@@ -935,6 +1065,18 @@ export default function App() {
             <VirtualJoystick
               onMove={(forward, strafe) => {
                 sceneManagerRef.current?.avatars.setTouchJoystickInput(forward, strafe);
+              }}
+              onLook={(dx, dy) => {
+                sceneManagerRef.current?.avatars.setTouchLookDelta(dx, dy);
+              }}
+              onJump={() => {
+                sceneManagerRef.current?.avatars.triggerJump();
+              }}
+              onSprintToggle={() => {
+                sceneManagerRef.current?.avatars.toggleSprint();
+              }}
+              onCenterCamera={() => {
+                sceneManagerRef.current?.avatars.centerCamera();
               }}
             />
           )}
@@ -1000,19 +1142,96 @@ export default function App() {
       />
 
       {/* 10. Landmark Detail Modal (upon clicking a 3D beacon or selecting from drawer) */}
-      <LandmarkDetailModal
-        landmark={selectedLandmark}
-        onClose={() => setSelectedLandmark(null)}
-        onSelectNext={(nextLoc) => handleSelectLocation(nextLoc)}
-        onFocusCamera={(loc) => sceneManagerRef.current?.travelToLocation(loc)}
-        onOpenCreator={handleOpenCreator}
+      {!isInsidePavilion && (
+        <LandmarkDetailModal
+          landmark={selectedLandmark}
+          onClose={() => setSelectedLandmark(null)}
+          onSelectNext={(nextLoc) => handleSelectLocation(nextLoc)}
+          onFocusCamera={(loc) => sceneManagerRef.current?.travelToLocation(loc)}
+          onOpenCreator={handleOpenCreator}
+        />
+      )}
+
+      {/* 11. Explorable Creator Pavilion HUD & Proximity Inspection */}
+      <PavilionHUD
+        isInside={isInsidePavilion}
+        nearPoint={nearPavilionPoint}
+        onOpenPoint={(pt) => {
+          setActivePavilionPoint(pt);
+          soundManager.playInteractSound();
+        }}
+        onExitPavilion={handleExitPavilion}
+        onToggleRooftop={handleTogglePavilionRooftop}
+        isRooftop={isPavilionRooftop}
       />
 
-      {/* 11. About 3DWorld Modal */}
+      {/* 12. Pavilion Exhibit Interactive Detail Panel */}
+      <PavilionInteractionModal
+        point={activePavilionPoint}
+        isOpen={!!activePavilionPoint}
+        onClose={() => setActivePavilionPoint(null)}
+        onTeleportRooftop={() => {
+          sceneManagerRef.current?.teleportPavilionRooftop();
+          setIsPavilionRooftop(true);
+        }}
+        onTeleportGround={() => {
+          sceneManagerRef.current?.teleportPavilionGround();
+          setIsPavilionRooftop(false);
+        }}
+        onExitPavilion={handleExitPavilion}
+        isRooftopActive={isPavilionRooftop}
+      />
+
+      {/* 13. About 3DWorld Modal */}
       <AboutModal
         isOpen={isAboutOpen}
         onClose={() => setIsAboutOpen(false)}
         initialTab={aboutInitialTab}
+      />
+
+      {/* 14. Living Universe Interaction Prompt (Unobtrusive Floating Action Pill) */}
+      {!isInsidePavilion && !activeNPCModal && !activeSpotModal && (
+        <WorldInteractionPrompt
+          nearbyNPC={nearbyNPC}
+          nearbySpot={nearbySpot}
+          onInteractNPC={(npc) => {
+            setActiveNPCModal(npc);
+            soundManager.playInteractSound();
+            sceneManagerRef.current?.setNPCTalkingState(npc.profile.id, true);
+          }}
+          onInteractSpot={(spot) => {
+            setActiveSpotModal(spot);
+            soundManager.playInteractSound();
+          }}
+        />
+      )}
+
+      {/* 15. Player Character Gesture Toolbar (Collapsible) */}
+      {!isInsidePavilion && (
+        <GestureToolbar
+          currentGesture={playerGesture}
+          onSelectGesture={handlePlayerGesture}
+          isDriving={isDriving}
+        />
+      )}
+
+      {/* 16. NPC Conversation & Schedule Dialog */}
+      <NPCInteractionModal
+        npc={activeNPCModal}
+        onClose={() => {
+          if (activeNPCModal) {
+            sceneManagerRef.current?.setNPCTalkingState(activeNPCModal.profile.id, false);
+          }
+          setActiveNPCModal(null);
+        }}
+        onPerformPlayerGesture={handlePlayerGesture}
+      />
+
+      {/* 17. Contextual World Spot Interaction Modal */}
+      <ContextualLocationModal
+        spot={activeSpotModal}
+        onClose={() => setActiveSpotModal(null)}
+        onPerformPlayerGesture={handlePlayerGesture}
       />
 
       {/* 12. Persistent Footer Credit (Zero Dock Overlap) */}

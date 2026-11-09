@@ -29,11 +29,51 @@ import {
   MultiplayerUser,
   AvatarColor,
   AvatarType,
+  GenderType,
   SharedBuildData,
 } from './types';
 
 // Safe default spawn in the Town Center Plaza
 export const DEFAULT_SPAWN_POSITION: [number, number, number] = [-8, 0.08, 6];
+
+/**
+ * Translates Firebase Auth error codes into clean, actionable user feedback
+ */
+export function getFriendlyAuthErrorMessage(err: unknown): string {
+  if (!err) return 'Authentication failed. Please check your credentials.';
+  const code = (err as { code?: string })?.code || '';
+  const msg = (err as Error)?.message || '';
+
+  if (code === 'auth/invalid-credential' || msg.includes('auth/invalid-credential')) {
+    return 'Incorrect email or password. If you do not have an account yet, please click "Register" or join via "Guest Play".';
+  }
+  if (code === 'auth/user-not-found' || msg.includes('auth/user-not-found')) {
+    return 'No account was found for this email address. Please register a new account or join as Guest.';
+  }
+  if (code === 'auth/wrong-password' || msg.includes('auth/wrong-password')) {
+    return 'Incorrect password. Please verify your password and try again.';
+  }
+  if (code === 'auth/email-already-in-use' || msg.includes('auth/email-already-in-use')) {
+    return 'An account with this email already exists. Please sign in instead.';
+  }
+  if (code === 'auth/weak-password' || msg.includes('auth/weak-password')) {
+    return 'Password is too short. Please choose a password with at least 6 characters.';
+  }
+  if (code === 'auth/invalid-email' || msg.includes('auth/invalid-email')) {
+    return 'Please enter a valid email address.';
+  }
+  if (code === 'auth/too-many-requests' || msg.includes('auth/too-many-requests')) {
+    return 'Access temporarily disabled due to multiple failed attempts. Please wait a few moments or join as Guest.';
+  }
+  if (code === 'auth/network-request-failed' || msg.includes('auth/network-request-failed')) {
+    return 'Network connection error. Please check your connection and try again.';
+  }
+  if (code === 'auth/operation-not-allowed' || msg.includes('auth/operation-not-allowed')) {
+    return 'Email authentication is currently unavailable. You can enter the village immediately via Guest Play!';
+  }
+
+  return 'Unable to authenticate. Please check your email and password, or enter as Guest.';
+}
 
 class MultiplayerService {
   private currentUser: MultiplayerUser | null = null;
@@ -86,11 +126,20 @@ class MultiplayerService {
         // Read stored profile preferences or set defaults
         let savedColor: AvatarColor = 'cyan';
         let savedStyle: AvatarType = 'casual';
+        let savedGender: GenderType = 'male';
+        let savedSkinTone: string = 'fair';
+        let savedHairStyle: string = 'short_crop';
         try {
           const col = localStorage.getItem('3dworld_avatar_color') as AvatarColor;
           if (col) savedColor = col;
           const sty = localStorage.getItem('3dworld_avatar_style') as AvatarType;
           if (sty) savedStyle = sty;
+          const gen = localStorage.getItem('3dworld_avatar_gender') as GenderType;
+          if (gen) savedGender = gen;
+          const sk = localStorage.getItem('3dworld_avatar_skin_tone');
+          if (sk) savedSkinTone = sk;
+          const hr = localStorage.getItem('3dworld_avatar_hair_style');
+          if (hr) savedHairStyle = hr;
         } catch {}
 
         const displayName = user.displayName || (user.isAnonymous ? `Guest_${user.uid.slice(-4)}` : user.email?.split('@')[0] || 'Player');
@@ -102,6 +151,9 @@ class MultiplayerService {
           displayName,
           avatarColor: savedColor,
           avatarType: savedStyle,
+          gender: savedGender,
+          skinTone: savedSkinTone,
+          hairStyle: savedHairStyle,
         };
       } else {
         this.currentUser = null;
@@ -110,7 +162,14 @@ class MultiplayerService {
     });
   }
 
-  public async signInAsGuest(displayName?: string, color: AvatarColor = 'cyan', style: AvatarType = 'casual'): Promise<MultiplayerUser> {
+  public async signInAsGuest(
+    displayName?: string,
+    color: AvatarColor = 'cyan',
+    style: AvatarType = 'casual',
+    gender: GenderType = 'male',
+    skinTone: string = 'fair',
+    hairStyle: string = 'short_crop'
+  ): Promise<MultiplayerUser> {
     this.connectionState = 'connecting';
     this.notifyState();
 
@@ -122,7 +181,7 @@ class MultiplayerService {
         await updateProfile(cred.user, { displayName: name });
       } catch {}
 
-      this.savePreferences(name, color, style);
+      this.savePreferences(name, color, style, gender, skinTone, hairStyle);
 
       this.currentUser = {
         uid: cred.user.uid,
@@ -131,13 +190,16 @@ class MultiplayerService {
         displayName: name,
         avatarColor: color,
         avatarType: style,
+        gender,
+        skinTone,
+        hairStyle,
       };
 
       this.connectionState = 'connected';
       this.notifyState();
       return this.currentUser;
     } catch (err) {
-      this.connectionState = 'error';
+      this.connectionState = 'disconnected';
       this.notifyState();
       throw err;
     }
@@ -148,7 +210,10 @@ class MultiplayerService {
     pass: string,
     displayName: string,
     color: AvatarColor = 'cyan',
-    style: AvatarType = 'casual'
+    style: AvatarType = 'casual',
+    gender: GenderType = 'male',
+    skinTone: string = 'fair',
+    hairStyle: string = 'short_crop'
   ): Promise<MultiplayerUser> {
     this.connectionState = 'connecting';
     this.notifyState();
@@ -161,7 +226,7 @@ class MultiplayerService {
         await updateProfile(cred.user, { displayName: name });
       } catch {}
 
-      this.savePreferences(name, color, style);
+      this.savePreferences(name, color, style, gender, skinTone, hairStyle);
 
       this.currentUser = {
         uid: cred.user.uid,
@@ -170,13 +235,16 @@ class MultiplayerService {
         displayName: name,
         avatarColor: color,
         avatarType: style,
+        gender,
+        skinTone,
+        hairStyle,
       };
 
       this.connectionState = 'connected';
       this.notifyState();
       return this.currentUser;
     } catch (err) {
-      this.connectionState = 'error';
+      this.connectionState = 'disconnected';
       this.notifyState();
       throw err;
     }
@@ -190,11 +258,20 @@ class MultiplayerService {
       const cred = await signInWithEmailAndPassword(auth, email, pass);
       let savedColor: AvatarColor = 'cyan';
       let savedStyle: AvatarType = 'casual';
+      let savedGender: GenderType = 'male';
+      let savedSkinTone: string = 'fair';
+      let savedHairStyle: string = 'short_crop';
       try {
         const col = localStorage.getItem('3dworld_avatar_color') as AvatarColor;
         if (col) savedColor = col;
         const sty = localStorage.getItem('3dworld_avatar_style') as AvatarType;
         if (sty) savedStyle = sty;
+        const gen = localStorage.getItem('3dworld_avatar_gender') as GenderType;
+        if (gen) savedGender = gen;
+        const sk = localStorage.getItem('3dworld_avatar_skin_tone');
+        if (sk) savedSkinTone = sk;
+        const hr = localStorage.getItem('3dworld_avatar_hair_style');
+        if (hr) savedHairStyle = hr;
       } catch {}
 
       const name = cred.user.displayName || email.split('@')[0];
@@ -206,13 +283,16 @@ class MultiplayerService {
         displayName: name,
         avatarColor: savedColor,
         avatarType: savedStyle,
+        gender: savedGender,
+        skinTone: savedSkinTone,
+        hairStyle: savedHairStyle,
       };
 
       this.connectionState = 'connected';
       this.notifyState();
       return this.currentUser;
     } catch (err) {
-      this.connectionState = 'error';
+      this.connectionState = 'disconnected';
       this.notifyState();
       throw err;
     }
@@ -226,12 +306,22 @@ class MultiplayerService {
     this.notifyState();
   }
 
-  public updateProfileSettings(displayName: string, color: AvatarColor, style: AvatarType) {
+  public updateProfileSettings(
+    displayName: string,
+    color: AvatarColor,
+    style: AvatarType,
+    gender: GenderType = 'male',
+    skinTone: string = 'fair',
+    hairStyle: string = 'short_crop'
+  ) {
     if (!this.currentUser) return;
     this.currentUser.displayName = displayName.trim() || this.currentUser.displayName;
     this.currentUser.avatarColor = color;
     this.currentUser.avatarType = style;
-    this.savePreferences(displayName, color, style);
+    this.currentUser.gender = gender;
+    this.currentUser.skinTone = skinTone;
+    this.currentUser.hairStyle = hairStyle;
+    this.savePreferences(displayName, color, style, gender, skinTone, hairStyle);
 
     if (auth.currentUser) {
       updateProfile(auth.currentUser, { displayName: this.currentUser.displayName }).catch(() => {});
@@ -244,11 +334,21 @@ class MultiplayerService {
     this.notifyState();
   }
 
-  private savePreferences(name: string, color: AvatarColor, style: AvatarType) {
+  private savePreferences(
+    name: string,
+    color: AvatarColor,
+    style: AvatarType,
+    gender: GenderType = 'male',
+    skinTone: string = 'fair',
+    hairStyle: string = 'short_crop'
+  ) {
     try {
       localStorage.setItem('3dworld_player_name', name);
       localStorage.setItem('3dworld_avatar_color', color);
       localStorage.setItem('3dworld_avatar_style', style);
+      localStorage.setItem('3dworld_avatar_gender', gender);
+      localStorage.setItem('3dworld_avatar_skin_tone', skinTone);
+      localStorage.setItem('3dworld_avatar_hair_style', hairStyle);
     } catch {}
   }
 
@@ -483,6 +583,9 @@ class MultiplayerService {
         displayName: this.currentUser.displayName,
         avatarColor: this.currentUser.avatarColor,
         avatarType: this.currentUser.avatarType,
+        gender: this.currentUser.gender,
+        skinTone: this.currentUser.skinTone,
+        hairStyle: this.currentUser.hairStyle,
         position: [
           Math.round(position[0] * 100) / 100,
           Math.round(position[1] * 100) / 100,

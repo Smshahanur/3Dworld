@@ -17,6 +17,10 @@ import { PlayerData } from '../multiplayer/types';
 import { WeatherManager } from './weather';
 import { DrivableVehicle } from './drivableVehicle';
 import { SpatialAuditSystem, SpatialAuditReport } from './spatialAuditSystem';
+import { PavilionInteractionPoint, PAVILION_INTERACTION_POINTS } from './creatorPavilionInterior';
+import { checkObstacleCollision } from './collisionSystem';
+import { ActiveNPCEntity, WorldInteractionSpot } from './npcBehaviorSystem';
+import { HumanoidGesture } from './humanoidCharacterSystem';
 
 export interface SceneManagerOptions {
   container: HTMLDivElement;
@@ -31,6 +35,14 @@ export interface SceneManagerOptions {
   onSelectRemotePlayer?: (player: PlayerData) => void;
   onDriveStateChange?: (driving: boolean) => void;
   onVehicleSpeedChange?: (speed: number, gear: 'D' | 'R' | 'P') => void;
+  onNearPavilionInteraction?: (point: PavilionInteractionPoint | null) => void;
+  onSelectPavilionPoint?: (point: PavilionInteractionPoint) => void;
+  onPavilionInsideChange?: (inside: boolean) => void;
+  onNearNPC?: (npc: ActiveNPCEntity | null) => void;
+  onSelectNPC?: (npc: ActiveNPCEntity) => void;
+  onNearWorldSpot?: (spot: WorldInteractionSpot | null) => void;
+  onSelectSpot?: (spot: WorldInteractionSpot) => void;
+  onPlayerGestureChange?: (gesture: HumanoidGesture) => void;
 }
 
 export class SceneManager {
@@ -49,6 +61,20 @@ export class SceneManager {
   public spatialAuditor!: SpatialAuditSystem;
   public onDriveStateChange?: (driving: boolean) => void;
   public onVehicleSpeedChange?: (speed: number, gear: 'D' | 'R' | 'P') => void;
+  public onNearPavilionInteraction?: (point: PavilionInteractionPoint | null) => void;
+  public onSelectPavilionPoint?: (point: PavilionInteractionPoint) => void;
+  public onPavilionInsideChange?: (inside: boolean) => void;
+  public onNearNPC?: (npc: ActiveNPCEntity | null) => void;
+  public onSelectNPC?: (npc: ActiveNPCEntity) => void;
+  public onNearWorldSpot?: (spot: WorldInteractionSpot | null) => void;
+  public onSelectSpot?: (spot: WorldInteractionSpot) => void;
+  public onPlayerGestureChange?: (gesture: HumanoidGesture) => void;
+  public isInsidePavilion: boolean = false;
+  public currentNearPavilionPoint: PavilionInteractionPoint | null = null;
+  public currentNearNPC: ActiveNPCEntity | null = null;
+  public currentNearSpot: WorldInteractionSpot | null = null;
+  private lastNearNPCId: string | null = null;
+  private lastNearSpotId: string | null = null;
   public isBuildMode: boolean = false;
   private dayNight = new DayNightCycleController(12.0, true);
   private skyUniforms!: {
@@ -130,6 +156,14 @@ export class SceneManager {
     this.onSelectRemotePlayer = options.onSelectRemotePlayer;
     this.onDriveStateChange = options.onDriveStateChange;
     this.onVehicleSpeedChange = options.onVehicleSpeedChange;
+    this.onNearPavilionInteraction = options.onNearPavilionInteraction;
+    this.onSelectPavilionPoint = options.onSelectPavilionPoint;
+    this.onPavilionInsideChange = options.onPavilionInsideChange;
+    this.onNearNPC = options.onNearNPC;
+    this.onSelectNPC = options.onSelectNPC;
+    this.onNearWorldSpot = options.onNearWorldSpot;
+    this.onSelectSpot = options.onSelectSpot;
+    this.onPlayerGestureChange = options.onPlayerGestureChange;
 
     this.init();
   }
@@ -852,28 +886,84 @@ export class SceneManager {
       }
     }
 
+    // Pavilion / World interaction shortcut: [E] inspects nearby exhibit, NPC, or public spot
+    if ((e.key === 'e' || e.key === 'E') && !this.vehicle?.getIsDriving() && !this.isBuildMode) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      if (this.currentNearPavilionPoint) {
+        this.onSelectPavilionPoint?.(this.currentNearPavilionPoint);
+        return;
+      }
+      if (this.currentNearNPC) {
+        this.onSelectNPC?.(this.currentNearNPC);
+        return;
+      }
+      if (this.currentNearSpot) {
+        this.onSelectSpot?.(this.currentNearSpot);
+        return;
+      }
+    }
+
+    // Number keys 1-5 for player gestures
+    if (!this.vehicle?.getIsDriving() && !this.isBuildMode && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+      if (e.key === '1') {
+        this.setLocalPlayerGesture('wave');
+        this.onPlayerGestureChange?.('wave');
+        return;
+      }
+      if (e.key === '2') {
+        this.setLocalPlayerGesture('sit');
+        this.onPlayerGestureChange?.('sit');
+        return;
+      }
+      if (e.key === '3') {
+        this.setLocalPlayerGesture('cheer');
+        this.onPlayerGestureChange?.('cheer');
+        return;
+      }
+      if (e.key === '4') {
+        this.setLocalPlayerGesture('dance');
+        this.onPlayerGestureChange?.('dance');
+        return;
+      }
+      if (e.key === '5') {
+        this.setLocalPlayerGesture('none');
+        this.onPlayerGestureChange?.('none');
+        return;
+      }
+    }
+
     if (this.currentViewMode !== 'street') return;
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
-    const moveStep = 1.2;
+    // Do not interfere with avatar movement when avatar follow camera is active
+    if (this.avatars?.isFollowCameraActive()) return;
+
+    const moveStep = 0.9;
     const forward = new THREE.Vector3();
     this.camera.getWorldDirection(forward);
     forward.y = 0;
     forward.normalize();
     const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
 
+    let stepVec: THREE.Vector3 | null = null;
     if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') {
-      this.camera.position.addScaledVector(forward, moveStep);
-      this.controls.target.addScaledVector(forward, moveStep);
+      stepVec = forward.clone().multiplyScalar(moveStep);
     } else if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') {
-      this.camera.position.addScaledVector(forward, -moveStep);
-      this.controls.target.addScaledVector(forward, -moveStep);
+      stepVec = forward.clone().multiplyScalar(-moveStep);
     } else if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') {
-      this.camera.position.addScaledVector(right, -moveStep);
-      this.controls.target.addScaledVector(right, -moveStep);
+      stepVec = right.clone().multiplyScalar(-moveStep);
     } else if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') {
-      this.camera.position.addScaledVector(right, moveStep);
-      this.controls.target.addScaledVector(right, moveStep);
+      stepVec = right.clone().multiplyScalar(moveStep);
+    }
+
+    if (stepVec) {
+      const nextTarget = this.controls.target.clone().add(stepVec);
+      const col = checkObstacleCollision(nextTarget.x, nextTarget.z, 0.35);
+      if (!col.collided) {
+        this.camera.position.add(stepVec);
+        this.controls.target.copy(nextTarget);
+      }
     }
   };
 
@@ -1014,6 +1104,12 @@ export class SceneManager {
             this.onSelectLandmark(loc);
             this.travelToLocation(loc);
           }
+        } else if (hit.userData?.isPavilionInteractable && hit.userData?.pointId) {
+          const pt = PAVILION_INTERACTION_POINTS.find((p) => p.id === hit.userData.pointId);
+          if (pt) {
+            this.onSelectPavilionPoint?.(pt);
+            return;
+          }
         } else if (hit.userData?.isBuilding) {
           const b = BUILDINGS.find((item) => item.id === hit.userData.buildingId);
           if (b) {
@@ -1053,16 +1149,30 @@ export class SceneManager {
         this.controls.target.lerpVectors(this.lookStart, this.lookTarget, ease);
       }
 
-      if (!this.vehicle?.getIsDriving()) {
-        this.controls.update();
+      const isAvatarFollowActive = !this.vehicle?.getIsDriving() && (this.avatars?.isFollowCameraActive() ?? false);
 
-        // Guarantee camera never clips underground, below sidewalks, or inside foundation plinths
-        const minCamY = this.currentViewMode === 'street' ? 1.6 : 3.5;
-        if (this.camera.position.y < minCamY) {
-          this.camera.position.y = minCamY;
-        }
-        if (this.currentViewMode === 'street' && this.controls.target.y < 1.0) {
-          this.controls.target.y = 1.0;
+      if (!this.vehicle?.getIsDriving()) {
+        if (isAvatarFollowActive) {
+          this.controls.enabled = false;
+        } else {
+          this.controls.enabled = true;
+          this.controls.update();
+
+          // Guarantee camera never clips underground, below sidewalks, or inside foundation plinths
+          const minCamY = this.currentViewMode === 'street' ? 1.6 : 3.5;
+          if (this.camera.position.y < minCamY) {
+            this.camera.position.y = minCamY;
+          }
+          if (this.currentViewMode === 'street' && this.controls.target.y < 1.0) {
+            this.controls.target.y = 1.0;
+          }
+
+          // Guarantee camera does not clip through pavilion roof when inside
+          if (this.isInsidePavilion) {
+            if (this.camera.position.y > 4.15) {
+              this.camera.position.y = 4.15;
+            }
+          }
         }
       }
 
@@ -1120,6 +1230,33 @@ export class SceneManager {
             beacon.position.y = originalY + Math.sin(elapsed * 2.2 + i * 1.2) * 0.35;
           });
         }
+
+        // Update Creator Pavilion explorable interior: automatic sliding doors, holographic universe, proximity interactions
+        if (this.animComponents.creatorPavilion) {
+          const pavilion = this.animComponents.creatorPavilion;
+          const focusPos = this.vehicle?.getIsDriving()
+            ? this.vehicle.getPosition()
+            : (this.currentViewMode === 'street' || this.isInsidePavilion ? this.controls.target : this.camera.position);
+
+          pavilion.slidingDoors.update(focusPos, delta);
+          pavilion.updateAnimation(delta, elapsed);
+
+          // Check if inside pavilion ground floor footprint
+          const isInside = focusPos.x >= 23.3 && focusPos.x <= 31.7 && focusPos.z >= 11.3 && focusPos.z <= 18.7 && focusPos.y <= 4.2;
+          if (isInside !== this.isInsidePavilion) {
+            this.isInsidePavilion = isInside;
+            this.onPavilionInsideChange?.(isInside);
+          }
+
+          // Proximity detection for interactive exhibits
+          const nearPt = pavilion.checkNearInteraction(focusPos);
+          const nearId = nearPt ? nearPt.id : null;
+          const lastId = this.currentNearPavilionPoint ? this.currentNearPavilionPoint.id : null;
+          if (nearId !== lastId) {
+            this.currentNearPavilionPoint = nearPt;
+            this.onNearPavilionInteraction?.(nearPt);
+          }
+        }
       }
 
       // Update Living Nature environmental animations (soaring birds, river reeds sway, swings, seesaws)
@@ -1132,15 +1269,43 @@ export class SceneManager {
         this.selectionHighlightGroup.rotation.y = elapsed * 0.8;
       }
 
-      // Update living world simulation (vehicles, pedestrians, streetlights, waves)
+      // Update living world simulation (vehicles, pedestrians, streetlights, waves, intelligent NPCs, environmental life)
       if (this.livingWorld) {
+        const playerPos = this.vehicle?.getIsDriving()
+          ? this.vehicle.getPosition()
+          : this.avatars?.getLocalAvatarPosition() ?? null;
+
         if (this.vehicle) {
           this.livingWorld.setPlayerVehicle(
             this.vehicle.getIsDriving() ? this.vehicle.getPosition() : null,
             1.35
           );
         }
-        this.livingWorld.update(delta, elapsed);
+        if (playerPos) {
+          this.livingWorld.setPlayerAvatarPosition({ x: playerPos.x, z: playerPos.z });
+        } else {
+          this.livingWorld.setPlayerAvatarPosition(null);
+        }
+
+        const currentHour = this.dayNight ? this.dayNight.timeOfDay : 12.0;
+        this.livingWorld.update(delta, elapsed, currentHour, playerPos, this.camera.position);
+
+        // Check Nearby NPC & World Interaction Spots
+        const nearNPC = this.livingWorld.npcManager?.getActiveNearbyNPC() ?? null;
+        const nearNPCId = nearNPC ? nearNPC.profile.id : null;
+        if (nearNPCId !== this.lastNearNPCId) {
+          this.lastNearNPCId = nearNPCId;
+          this.currentNearNPC = nearNPC;
+          this.onNearNPC?.(nearNPC);
+        }
+
+        const nearSpot = this.livingWorld.npcManager?.getActiveNearbySpot() ?? null;
+        const nearSpotId = nearSpot ? nearSpot.id : null;
+        if (nearSpotId !== this.lastNearSpotId) {
+          this.lastNearSpotId = nearSpotId;
+          this.currentNearSpot = nearSpot;
+          this.onNearWorldSpot?.(nearSpot);
+        }
       }
 
       // Update weather system (rain streaks, snowflakes, fog atmospheric transitions)
@@ -1278,6 +1443,59 @@ export class SceneManager {
 
   public getSpatialAuditReport(): SpatialAuditReport | null {
     return this.spatialAuditor?.runAudit() ?? null;
+  }
+
+  public getCameraState(): { position: THREE.Vector3; target: THREE.Vector3 } {
+    return {
+      position: this.camera.position.clone(),
+      target: this.controls.target.clone(),
+    };
+  }
+
+  public enterCreatorPavilion() {
+    this.setViewMode('street');
+    this.flyTo([25.0, 1.6, 15.0], [27.5, 1.4, 15.0], 1.5);
+  }
+
+  public exitCreatorPavilion() {
+    this.setViewMode('street');
+    this.flyTo([19.0, 2.0, 15.0], [27.5, 1.6, 15.0], 1.5);
+  }
+
+  public teleportPavilionRooftop() {
+    this.setViewMode('street');
+    this.flyTo([26.0, 5.8, 17.0], [30.0, 4.5, 15.0], 1.5);
+  }
+
+  public teleportPavilionGround() {
+    this.setViewMode('street');
+    this.flyTo([25.0, 1.6, 15.0], [27.5, 1.4, 15.0], 1.5);
+  }
+
+  public getLivingWorld(): LivingWorldManager {
+    return this.livingWorld;
+  }
+
+  public getActiveNearbyNPC() {
+    return this.livingWorld?.npcManager?.getActiveNearbyNPC() ?? null;
+  }
+
+  public getActiveNearbySpot() {
+    return this.livingWorld?.npcManager?.getActiveNearbySpot() ?? null;
+  }
+
+  public setNPCTalkingState(npcId: string, isTalking: boolean) {
+    this.livingWorld?.npcManager?.setNPCTalkingState(npcId, isTalking);
+  }
+
+  public setLocalPlayerGesture(gesture: import('./humanoidCharacterSystem').HumanoidGesture) {
+    if (this.avatars) {
+      this.avatars.setGesture(gesture);
+    }
+  }
+
+  public getLocalPlayerGesture(): import('./humanoidCharacterSystem').HumanoidGesture {
+    return this.avatars?.getGesture() ?? 'none';
   }
 
   public dispose() {

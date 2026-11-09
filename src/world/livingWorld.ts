@@ -1,6 +1,15 @@
 import * as THREE from 'three';
 import { MaterialLibrary } from './materials';
 import { checkObstacleCollision, isPointInDriveableArea } from './collisionSystem';
+import {
+  createHumanoidCharacter,
+  HumanoidRig,
+  HumanoidOptions,
+  SKIN_TONES,
+  HAIR_COLORS,
+} from './humanoidCharacterSystem';
+import { NPCBehaviorManager } from './npcBehaviorSystem';
+import { EnvironmentalLifeManager } from './environmentalLifeSystem';
 
 export interface LivingWorldOptions {
   materials: MaterialLibrary;
@@ -45,12 +54,7 @@ interface VehicleEntity {
 
 interface PedestrianEntity {
   group: THREE.Group;
-  leftLeg: THREE.Group;
-  rightLeg: THREE.Group;
-  leftArm: THREE.Group;
-  rightArm: THREE.Group;
-  torso: THREE.Mesh;
-  head: THREE.Mesh;
+  rig: HumanoidRig;
   path: Waypoint[];
   currentSegment: number;
   segmentProgress: number;
@@ -82,6 +86,11 @@ export class LivingWorldManager {
   private lakeMesh: THREE.Mesh | null = null;
   private streetPointLights: THREE.PointLight[] = [];
   private playerVehiclePosition: { x: number; z: number; radius: number } | null = null;
+  private playerAvatarPosition: { x: number; z: number } | null = null;
+  private nightGlowFactor: number = 0;
+
+  public npcManager: NPCBehaviorManager;
+  public envLifeManager: EnvironmentalLifeManager;
 
   constructor(options: LivingWorldOptions) {
     this.materials = options.materials;
@@ -91,9 +100,19 @@ export class LivingWorldManager {
     this.group.add(this.vehicleGroup);
     this.group.add(this.pedestrianGroup);
 
+    this.npcManager = new NPCBehaviorManager(this.materials, this.isSoftwareGl);
+    this.group.add(this.npcManager.group);
+
+    this.envLifeManager = new EnvironmentalLifeManager(this.materials, this.isSoftwareGl);
+    this.group.add(this.envLifeManager.group);
+
     this.initVehicles();
     this.initPedestrians();
     this.initStreetlights();
+  }
+
+  public setPlayerAvatarPosition(pos: { x: number; z: number } | null) {
+    this.playerAvatarPosition = pos;
   }
 
   public setLakeMesh(mesh: THREE.Mesh) {
@@ -616,10 +635,58 @@ export class LivingWorldManager {
   }
 
   // ---------------------------------------------------------------------------
-  // 2. PEDESTRIAN SIMULATION (10 Articulated Humanoids across 5 Districts)
+  // 2. PEDESTRIAN SIMULATION (Realistic Articulated Humanoids across all 3 Districts)
   // ---------------------------------------------------------------------------
   private initPedestrians() {
-    // 1 & 2: Strolling around Town Center Plaza Pavers & Café
+    // === DISTRICT 1: RURAL VILLAGE RESIDENTS ===
+    // 1. Rural Elder / Farmer near Community Well & Croplands
+    const r1Path: Waypoint[] = [
+      { x: -116, z: -14 },
+      { x: -104, z: -14 },
+      { x: -104, z: -24 },
+      { x: -116, z: -24 },
+    ];
+    this.createPedestrian(
+      r1Path,
+      {
+        gender: 'male',
+        hairStyle: 'explorer_hat',
+        outfitType: 'rural_villager',
+        primaryColor: 0xd97706,
+        pantsColor: 0x57534e,
+        skinTone: SKIN_TONES.bronze,
+        hairColor: HAIR_COLORS.silver,
+      },
+      1.15,
+      0.0
+    );
+
+    // 2. Rural Child playing along Pastoral Millpond Trail
+    const r2Path: Waypoint[] = [
+      { x: -128, z: 14 },
+      { x: -116, z: 14 },
+      { x: -116, z: 24 },
+      { x: -128, z: 24 },
+    ];
+    this.createPedestrian(
+      r2Path,
+      {
+        gender: 'male',
+        isChild: true,
+        heightScale: 0.68,
+        hairStyle: 'short_crop',
+        outfitType: 'casual',
+        primaryColor: 0x10b981,
+        pantsColor: 0x1e293b,
+        skinTone: SKIN_TONES.warmBeige,
+        hairColor: HAIR_COLORS.chestnut,
+      },
+      1.35,
+      1.8
+    );
+
+    // === DISTRICT 2: MODERN VILLAGE RESIDENTS ===
+    // 3. Strolling around Town Center Plaza Pavers & Café
     const p1Path: Waypoint[] = [
       { x: -22, z: -4 },
       { x: -14, z: -4 },
@@ -628,17 +695,44 @@ export class LivingWorldManager {
       { x: -18, z: 6 },
       { x: -24, z: 2 },
     ];
-    this.createPedestrian(p1Path, this.materials.pedestrianShirt1, 1.35, 0.0);
+    this.createPedestrian(
+      p1Path,
+      {
+        gender: 'female',
+        hairStyle: 'long_flowing',
+        outfitType: 'jacket',
+        primaryColor: 0x06b6d4,
+        pantsColor: 0x1e293b,
+        skinTone: SKIN_TONES.warmBeige,
+        hairColor: HAIR_COLORS.darkBrown,
+      },
+      1.25,
+      0.0
+    );
 
+    // 4. Urban Resident in Town Center
     const p2Path: Waypoint[] = [
       { x: -12, z: 4 },
       { x: -20, z: 4 },
       { x: -24, z: -6 },
       { x: -16, z: -6 },
     ];
-    this.createPedestrian(p2Path, this.materials.pedestrianShirt2, 1.25, 1.5);
+    this.createPedestrian(
+      p2Path,
+      {
+        gender: 'male',
+        hairStyle: 'pompadour',
+        outfitType: 'casual',
+        primaryColor: 0x3b82f6,
+        pantsColor: 0x0f172a,
+        skinTone: SKIN_TONES.olive,
+        hairColor: HAIR_COLORS.black,
+      },
+      1.22,
+      1.5
+    );
 
-    // 3 & 4: Central Park Walking Paths & Fountain
+    // 5. Central Park Walking Paths & Fountain Stroller
     const p3Path: Waypoint[] = [
       { x: 12, z: -10 },
       { x: 22, z: -14 },
@@ -646,26 +740,66 @@ export class LivingWorldManager {
       { x: 24, z: 6 },
       { x: 14, z: 4 },
     ];
-    this.createPedestrian(p3Path, this.materials.pedestrianShirt3, 1.4, 0.8);
+    this.createPedestrian(
+      p3Path,
+      {
+        gender: 'female',
+        hairStyle: 'bun',
+        outfitType: 'modern_urban',
+        primaryColor: 0xec4899,
+        pantsColor: 0x334155,
+        skinTone: SKIN_TONES.fair,
+        hairColor: HAIR_COLORS.auburn,
+      },
+      1.3,
+      0.8
+    );
 
+    // 6. Central Park Jogger
     const p4Path: Waypoint[] = [
       { x: 16, z: 8 },
       { x: 26, z: 8 },
       { x: 22, z: -2 },
       { x: 14, z: -2 },
     ];
-    this.createPedestrian(p4Path, this.materials.pedestrianShirt1, 1.3, 2.2);
+    this.createPedestrian(
+      p4Path,
+      {
+        gender: 'male',
+        hairStyle: 'short_crop',
+        outfitType: 'casual',
+        primaryColor: 0x10b981,
+        pantsColor: 0x1e293b,
+        skinTone: SKIN_TONES.bronze,
+        hairColor: HAIR_COLORS.black,
+      },
+      1.4,
+      2.2
+    );
 
-    // 5 & 6: Boulevard Pedestrian Crossings (stopping to look before crossing)
+    // 7 & 8: Boulevard Pedestrian Crossings (stopping to look before crossing)
     const p5Path: Waypoint[] = [
       { x: -14, z: -5.5 },
-      { x: -14, z: -2.0, yieldDuration: 1.5 }, // look left/right before stepping onto road
+      { x: -14, z: -2.0, yieldDuration: 1.5 },
       { x: -14, z: 5.5 },
       { x: -12, z: 5.5 },
       { x: -12, z: 2.0, yieldDuration: 1.5 },
       { x: -12, z: -5.5 },
     ];
-    this.createPedestrian(p5Path, this.materials.pedestrianShirt2, 1.2, 0.4);
+    this.createPedestrian(
+      p5Path,
+      {
+        gender: 'female',
+        hairStyle: 'short_crop',
+        outfitType: 'jacket',
+        primaryColor: 0x8b5cf6,
+        pantsColor: 0x0f172a,
+        skinTone: SKIN_TONES.warmBeige,
+        hairColor: HAIR_COLORS.darkBrown,
+      },
+      1.2,
+      0.4
+    );
 
     const p6Path: Waypoint[] = [
       { x: 2, z: 5.5 },
@@ -675,113 +809,144 @@ export class LivingWorldManager {
       { x: 0, z: -2.0, yieldDuration: 1.2 },
       { x: 0, z: 5.5 },
     ];
-    this.createPedestrian(p6Path, this.materials.pedestrianShirt3, 1.15, 1.9);
+    this.createPedestrian(
+      p6Path,
+      {
+        gender: 'male',
+        hairStyle: 'short_crop',
+        outfitType: 'builder',
+        primaryColor: 0xf59e0b,
+        pantsColor: 0x1e293b,
+        skinTone: SKIN_TONES.espresso,
+        hairColor: HAIR_COLORS.black,
+      },
+      1.18,
+      1.9
+    );
 
-    // 7 & 8: Botanical Garden Conservatory & Floral Parterres
+    // 9. Botanical Garden Conservatory Explorer
     const p7Path: Waypoint[] = [
       { x: 24, z: 28 },
       { x: 32, z: 28 },
       { x: 32, z: 40 },
       { x: 24, z: 40 },
     ];
-    this.createPedestrian(p7Path, this.materials.pedestrianShirt1, 1.2, 3.0);
+    this.createPedestrian(
+      p7Path,
+      {
+        gender: 'male',
+        hairStyle: 'explorer_hat',
+        outfitType: 'explorer',
+        primaryColor: 0x059669,
+        pantsColor: 0x475569,
+        skinTone: SKIN_TONES.olive,
+        hairColor: HAIR_COLORS.darkBrown,
+      },
+      1.22,
+      3.0
+    );
 
-    const p8Path: Waypoint[] = [
-      { x: 26, z: 32 },
-      { x: 34, z: 32 },
-      { x: 34, z: 36 },
-      { x: 26, z: 36 },
-    ];
-    this.createPedestrian(p8Path, this.materials.pedestrianShirt3, 1.22, 1.1);
-
-    // 9: Lake District Promenade Boardwalk
+    // 10. Lake District Boardwalk Promenade
     const p9Path: Waypoint[] = [
       { x: -16, z: -24 },
       { x: -2, z: -24 },
       { x: 14, z: -24 },
       { x: -2, z: -24 },
     ];
-    this.createPedestrian(p9Path, this.materials.pedestrianShirt2, 1.3, 0.6);
+    this.createPedestrian(
+      p9Path,
+      {
+        gender: 'female',
+        hairStyle: 'long_flowing',
+        outfitType: 'casual',
+        primaryColor: 0x0ea5e9,
+        pantsColor: 0xf8fafc,
+        skinTone: SKIN_TONES.fair,
+        hairColor: HAIR_COLORS.blonde,
+      },
+      1.28,
+      0.6
+    );
 
-    // 10: Residential District Sidewalk
-    const p10Path: Waypoint[] = [
-      { x: -44, z: 44 },
-      { x: -26, z: 44 },
-      { x: -14, z: 44 },
-      { x: -26, z: 44 },
+    // === DISTRICT 3: CAPITAL TOWN METROPOLITAN RESIDENTS ===
+    // 11. Capital City Hall Executive
+    const c1Path: Waypoint[] = [
+      { x: 106, z: -18 },
+      { x: 122, z: -18 },
+      { x: 122, z: -30 },
+      { x: 106, z: -30 },
     ];
-    this.createPedestrian(p10Path, this.materials.pedestrianShirt1, 1.28, 2.5);
+    this.createPedestrian(
+      c1Path,
+      {
+        gender: 'male',
+        hairStyle: 'short_crop',
+        outfitType: 'formal_blazer',
+        primaryColor: 0x1e293b,
+        pantsColor: 0x0f172a,
+        skinTone: SKIN_TONES.warmBeige,
+        hairColor: HAIR_COLORS.black,
+      },
+      1.26,
+      0.5
+    );
+
+    // 12. Capital Grand Obelisk Court Resident
+    const c2Path: Waypoint[] = [
+      { x: 126, z: 14 },
+      { x: 142, z: 14 },
+      { x: 142, z: 26 },
+      { x: 126, z: 26 },
+    ];
+    this.createPedestrian(
+      c2Path,
+      {
+        gender: 'female',
+        hairStyle: 'bun',
+        outfitType: 'modern_urban',
+        primaryColor: 0x4f46e5,
+        pantsColor: 0x1e1b4b,
+        skinTone: SKIN_TONES.bronze,
+        hairColor: HAIR_COLORS.darkBrown,
+      },
+      1.24,
+      1.2
+    );
   }
 
   private createPedestrian(
     path: Waypoint[],
-    shirtMat: THREE.Material,
+    options: HumanoidOptions,
     speed: number,
     startOffset: number
   ) {
     const pedGroup = new THREE.Group();
-    pedGroup.position.set(path[0].x, 0.22, path[0].z);
+    pedGroup.position.set(path[0].x, 0.08, path[0].z);
 
-    // 1. Torso / Shirt
-    const torsoGeo = new THREE.BoxGeometry(0.38, 0.52, 0.24);
-    const torso = new THREE.Mesh(torsoGeo, shirtMat);
-    torso.position.y = 0.95;
-    torso.castShadow = !this.isSoftwareGl;
-    pedGroup.add(torso);
+    const rig = createHumanoidCharacter({
+      ...options,
+      castShadow: !this.isSoftwareGl,
+    });
+    pedGroup.add(rig.root);
 
-    // 2. Head & Hair
-    const headGeo = new THREE.SphereGeometry(0.16, 8, 8);
-    const head = new THREE.Mesh(headGeo, this.materials.pedestrianSkin);
-    head.position.y = 1.34;
-    pedGroup.add(head);
-
-    const hairGeo = new THREE.BoxGeometry(0.33, 0.1, 0.33);
-    const hair = new THREE.Mesh(hairGeo, this.materials.metalBlack);
-    hair.position.y = 1.45;
-    pedGroup.add(hair);
-
-    // 3. Articulated Legs (Left & Right)
-    const legGeo = new THREE.BoxGeometry(0.14, 0.62, 0.16);
-    legGeo.translate(0, -0.31, 0); // Pivot at hip joint
-
-    const leftLeg = new THREE.Group();
-    leftLeg.position.set(-0.1, 0.68, 0);
-    const leftLegMesh = new THREE.Mesh(legGeo, this.materials.pedestrianPants);
-    leftLeg.add(leftLegMesh);
-    pedGroup.add(leftLeg);
-
-    const rightLeg = new THREE.Group();
-    rightLeg.position.set(0.1, 0.68, 0);
-    const rightLegMesh = new THREE.Mesh(legGeo, this.materials.pedestrianPants);
-    rightLeg.add(rightLegMesh);
-    pedGroup.add(rightLeg);
-
-    // 4. Articulated Arms (Left & Right)
-    const armGeo = new THREE.BoxGeometry(0.1, 0.44, 0.12);
-    armGeo.translate(0, -0.22, 0); // Pivot at shoulder joint
-
-    const leftArm = new THREE.Group();
-    leftArm.position.set(-0.25, 1.15, 0);
-    const leftArmMesh = new THREE.Mesh(armGeo, shirtMat);
-    leftArm.add(leftArmMesh);
-    pedGroup.add(leftArm);
-
-    const rightArm = new THREE.Group();
-    rightArm.position.set(0.25, 1.15, 0);
-    const rightArmMesh = new THREE.Mesh(armGeo, shirtMat);
-    rightArm.add(rightArmMesh);
-    pedGroup.add(rightArm);
+    // Subtle contact ground shadow
+    const shadowGeo = new THREE.RingGeometry(0.14, 0.38, 12);
+    shadowGeo.rotateX(-Math.PI / 2);
+    const shadowMat = new THREE.MeshBasicMaterial({
+      color: 0x000000,
+      transparent: true,
+      opacity: 0.28,
+      depthWrite: false,
+    });
+    const shadowRing = new THREE.Mesh(shadowGeo, shadowMat);
+    shadowRing.position.y = 0.01;
+    pedGroup.add(shadowRing);
 
     this.pedestrianGroup.add(pedGroup);
 
     this.pedestrians.push({
       group: pedGroup,
-      leftLeg,
-      rightLeg,
-      leftArm,
-      rightArm,
-      torso,
-      head,
+      rig,
       path,
       currentSegment: 0,
       segmentProgress: startOffset % 1,
@@ -899,17 +1064,14 @@ export class LivingWorldManager {
       p.pauseTimer = 0;
       p.isPausing = false;
       p.walkCycle = 0;
-      p.group.position.set(p.path[0].x, 0.22, p.path[0].z);
-      p.leftLeg.rotation.x = 0;
-      p.rightLeg.rotation.x = 0;
-      p.leftArm.rotation.x = 0;
-      p.rightArm.rotation.x = 0;
-      p.head.rotation.y = 0;
+      p.group.position.set(p.path[0].x, 0.08, p.path[0].z);
+      p.rig.updateAnimation(0, false, false, false, 0, 0.016);
     }
   }
 
   public setNightMode(isNight: boolean | number) {
     const factor = typeof isNight === 'number' ? Math.max(0, Math.min(1, isNight)) : isNight ? 1 : 0;
+    this.nightGlowFactor = factor;
     this.isNight = factor > 0.4;
     const targetIntensity = this.qualityLevel === 'low' ? 0 : factor * 1.8;
     this.streetPointLights.forEach((light) => {
@@ -928,7 +1090,13 @@ export class LivingWorldManager {
   // ---------------------------------------------------------------------------
   // 5. UPDATE LOOP (Zero Per-Frame Allocations)
   // ---------------------------------------------------------------------------
-  public update(delta: number, elapsed: number) {
+  public update(
+    delta: number,
+    elapsed: number,
+    timeOfDayHour: number = 12.0,
+    playerPos: { x: number; y: number; z: number } | null = null,
+    cameraPos: THREE.Vector3 = new THREE.Vector3(0, 15, 30)
+  ) {
     if (!this.isActive) return;
 
     const effectiveDt = Math.min(delta, 0.08) * this.simSpeedMultiplier;
@@ -943,7 +1111,17 @@ export class LivingWorldManager {
       this.updatePedestrians(effectiveDt);
     }
 
-    // 3. Lake Water Movement
+    // 3. Update Intelligent Scheduled NPCs across all 3 districts
+    if (this.npcManager && this.isPedestriansActive) {
+      this.npcManager.update(effectiveDt, timeOfDayHour, playerPos, cameraPos);
+    }
+
+    // 4. Update Environmental Life (Butterflies, Fountains, Wind, Window Lights)
+    if (this.envLifeManager && this.isEnvAnimationActive && !this.isEcoMode) {
+      this.envLifeManager.update(effectiveDt, elapsed, this.nightGlowFactor);
+    }
+
+    // 5. Lake Water Movement
     if (this.lakeMesh && this.isEnvAnimationActive && !this.isEcoMode) {
       this.lakeMesh.position.y = -0.18 + Math.sin(elapsed * 1.8) * 0.02;
     }
@@ -1053,6 +1231,53 @@ export class LivingWorldManager {
           } else if (dist < playerLateralClearance) {
             // Player EV is crossing path or immediately adjacent
             tooClose = true;
+          }
+        }
+      }
+
+      // Check against Pedestrians, Scheduled NPCs, and Player On-Foot Avatar (3.5m-4.0m stopping buffer)
+      if (!tooClose) {
+        const checkPositions: { x: number; z: number; radius: number }[] = [];
+        for (let pi = 0; pi < this.pedestrians.length; pi++) {
+          const pos = this.pedestrians[pi].group.position;
+          checkPositions.push({ x: pos.x, z: pos.z, radius: 0.55 });
+        }
+        if (this.npcManager) {
+          const npcList = this.npcManager.getNPCPositions();
+          for (let ni = 0; ni < npcList.length; ni++) {
+            checkPositions.push(npcList[ni]);
+          }
+        }
+        if (this.playerAvatarPosition) {
+          checkPositions.push({
+            x: this.playerAvatarPosition.x,
+            z: this.playerAvatarPosition.z,
+            radius: 0.65,
+          });
+        }
+
+        for (let pi = 0; pi < checkPositions.length; pi++) {
+          const pTarget = checkPositions[pi];
+          const px = pTarget.x - myX;
+          const pz = pTarget.z - myZ;
+          const dist = Math.hypot(px, pz);
+          const safeStopDist = v.halfLength + pTarget.radius + 3.4; // 3.4m stopping buffer
+          const safeSlowDist = safeStopDist + 4.6;
+
+          if (dist < safeSlowDist) {
+            const dot = (px * forwardX + pz * forwardZ) / Math.max(0.001, dist);
+            if (dot > 0.35) {
+              if (dist < safeStopDist) {
+                tooClose = true;
+                break;
+              } else {
+                shouldSlowDown = true;
+                slowTargetSpeed = Math.min(v.actualSpeed, 1.4);
+              }
+            } else if (dist < v.collisionRadius + pTarget.radius + 1.2) {
+              tooClose = true;
+              break;
+            }
           }
         }
       }
@@ -1169,20 +1394,31 @@ export class LivingWorldManager {
       // Pedestrian pausing at crosswalk or viewpoint
       if (p.isPausing) {
         p.pauseTimer -= dt;
-        // Subtle looking around (head yaw sway)
-        p.head.rotation.y = Math.sin(p.pauseTimer * 3.0) * 0.45;
-        // Stand still
-        p.leftLeg.rotation.x = 0;
-        p.rightLeg.rotation.x = 0;
-        p.leftArm.rotation.x = 0;
-        p.rightArm.rotation.x = 0;
+        p.rig.updateAnimation(0, false, false, false, 0, dt);
 
         if (p.pauseTimer <= 0) {
           p.isPausing = false;
           p.pauseTimer = 0;
-          p.head.rotation.y = 0;
         }
         continue;
+      }
+
+      // Check oncoming vehicle when pedestrian is on or near the road surface (|z| < 3.8)
+      if (Math.abs(p.group.position.z) < 3.8) {
+        for (let vi = 0; vi < this.vehicles.length; vi++) {
+          const veh = this.vehicles[vi];
+          const distToVeh = Math.hypot(
+            veh.group.position.x - p.group.position.x,
+            veh.group.position.z - p.group.position.z
+          );
+          if (distToVeh < 7.5 && veh.actualSpeed > 0.6) {
+            p.isPausing = true;
+            p.pauseTimer = 1.0;
+            p.rig.updateAnimation(0, false, false, false, 0, dt);
+            break;
+          }
+        }
+        if (p.isPausing) continue;
       }
 
       const dx = pB.x - pA.x;
@@ -1204,26 +1440,21 @@ export class LivingWorldManager {
           }
         }
 
-        // Interpolate position
+        // Interpolate position along path
         p.group.position.x = pA.x + dx * p.segmentProgress;
         p.group.position.z = pA.z + dz * p.segmentProgress;
 
-        // Facing direction
-        const heading = Math.atan2(dx, dz);
-        p.group.rotation.y = heading;
+        // Facing direction with smooth turn
+        const targetHeading = Math.atan2(dx, dz);
+        const headingDiff = Math.atan2(
+          Math.sin(targetHeading - p.group.rotation.y),
+          Math.cos(targetHeading - p.group.rotation.y)
+        );
+        p.group.rotation.y += headingDiff * Math.min(1, dt * 8);
 
-        // Articulated Walk Cycle
-        p.walkCycle += dt * p.speed * 4.2;
-        const swingAngle = Math.sin(p.walkCycle) * 0.42;
-
-        p.leftLeg.rotation.x = swingAngle;
-        p.rightLeg.rotation.x = -swingAngle;
-
-        p.leftArm.rotation.x = -swingAngle * 0.75;
-        p.rightArm.rotation.x = swingAngle * 0.75;
-
-        // Subtle vertical hip bounce
-        p.torso.position.y = 0.95 + Math.abs(Math.sin(p.walkCycle)) * 0.035;
+        // Articulated Walk Cycle with realistic limb swing & physical stride cadence
+        p.walkCycle += dt * p.speed * 2.6;
+        p.rig.updateAnimation(p.walkCycle, true, false, false, 0, dt, p.speed);
       }
     }
   }

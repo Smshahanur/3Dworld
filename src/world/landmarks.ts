@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { MaterialLibrary } from './materials';
 import { isPointInDriveableArea } from './collisionSystem';
+import { createCreatorPavilionInterior, CreatorPavilionInteriorResult } from './creatorPavilionInterior';
 
 export interface AnimatedLandmarkComponents {
   fountainWater: THREE.Mesh;
@@ -10,6 +11,7 @@ export interface AnimatedLandmarkComponents {
   floatingBeaconMarkers: THREE.Group;
   mooredRowboat?: THREE.Group;
   playgroundSeesaw?: THREE.Group;
+  creatorPavilion?: CreatorPavilionInteriorResult;
 }
 
 export function createModernVillage(materials: MaterialLibrary): {
@@ -97,7 +99,7 @@ export function createModernVillage(materials: MaterialLibrary): {
   // ========================================================
   // 4b. 3D CREATOR PAVILION (STUDIO OF SHAHANUR MOLLAH)
   // ========================================================
-  createCreatorPavilion(villageGroup, clickableBuildingMeshes, materials, foliageWindGroup);
+  const pavilionInterior = createCreatorPavilion(villageGroup, clickableBuildingMeshes, materials, foliageWindGroup);
   createBeaconMarker('creator-pavilion', 'Creator Pavilion', 27.5, 4.5, 15.0, 0x14b8a6);
 
   // ========================================================
@@ -134,6 +136,7 @@ export function createModernVillage(materials: MaterialLibrary): {
       floatingBeaconMarkers,
       mooredRowboat: lakeAnim.rowboatGroup,
       playgroundSeesaw: parkAnim.playgroundSeesaw,
+      creatorPavilion: pavilionInterior,
     },
     beaconMeshes,
     clickableBuildingMeshes,
@@ -1649,7 +1652,7 @@ function createCreatorPavilion(
   clickableBuildings: THREE.Mesh[],
   materials: MaterialLibrary,
   foliageGroup: THREE.Group
-) {
+): CreatorPavilionInteriorResult {
   const pavilionGroup = new THREE.Group();
   // Situated in Modern Village garden zone, safely clear of Botanical Drive (X <= 17.2) and East Boulevard (Z <= 4.4)
   pavilionGroup.position.set(27.5, 0, 15.0);
@@ -1786,23 +1789,7 @@ function createCreatorPavilion(
   clickableBuildings.push(wallW2);
   pavilionGroup.add(wallW2);
 
-  // Center Framed Glass Entrance Doors
-  const glassDoorGeo = new THREE.BoxGeometry(0.06, bHeight - 0.4, doorOpeningWidth);
-  const glassDoor = new THREE.Mesh(glassDoorGeo, glassCurtainMat);
-  glassDoor.position.set(-bWidth / 2 + 0.05, colY - 0.15, 0);
-  glassDoor.userData = { isBuilding: true, buildingId: 'creator-pavilion' };
-  clickableBuildings.push(glassDoor);
-  pavilionGroup.add(glassDoor);
-
-  // Stainless steel door handles
-  const handleGeo = new THREE.CylinderGeometry(0.02, 0.02, 1.2, 8);
-  const handleL = new THREE.Mesh(handleGeo, materials.metalSteel);
-  handleL.position.set(-bWidth / 2 - 0.05, colY - 0.3, -0.2);
-  pavilionGroup.add(handleL);
-
-  const handleR = new THREE.Mesh(handleGeo, materials.metalSteel);
-  handleR.position.set(-bWidth / 2 - 0.05, colY - 0.3, 0.2);
-  pavilionGroup.add(handleR);
+  // Note: Entrance doorway (width 2.4m) is fitted with automatic sliding double glass doors inside interior architecture
 
   // 3. Cantilevered Dark Slate Floating Roof (Projecting 0.6m beyond walls)
   const roofWidth = bWidth + 1.2;
@@ -1902,66 +1889,10 @@ function createCreatorPavilion(
   signTrimBot.position.set(-bWidth / 2 - 0.12, colY + 1.25 - 0.33, 0);
   pavilionGroup.add(signTrimBot);
 
-  // 6. Interior Studio Exhibition Elements (Visible through glass)
-  // Center marble plinth pedestal
-  const pedGeo = new THREE.CylinderGeometry(0.85, 0.95, 0.85, 24);
-  const pedestal = new THREE.Mesh(pedGeo, materials.modernWhiteStucco);
-  pedestal.position.set(0, 0.34 + 0.425, 0);
-  pedestal.castShadow = true;
-  pavilionGroup.add(pedestal);
-
-  // Glowing ring atop pedestal
-  const pedRingGeo = new THREE.TorusGeometry(0.75, 0.03, 8, 32);
-  pedRingGeo.rotateX(Math.PI / 2);
-  const pedRing = new THREE.Mesh(pedRingGeo, turquoiseNeonMat);
-  pedRing.position.set(0, 0.34 + 0.86, 0);
-  pavilionGroup.add(pedRing);
-
-  // Floating hologram wireframe sphere of 3DWorld
-  const holoGeo = new THREE.SphereGeometry(0.5, 16, 12);
-  const holoMat = new THREE.MeshBasicMaterial({
-    color: 0x2dd4bf,
-    wireframe: true,
-    transparent: true,
-    opacity: 0.8,
-  });
-  const hologram = new THREE.Mesh(holoGeo, holoMat);
-  hologram.position.set(0, 0.34 + 0.85 + 0.65, 0);
-  pavilionGroup.add(hologram);
-
-  // Studio developer work desk against east glass wall
-  const deskGeo = new THREE.BoxGeometry(0.9, 0.75, 2.4);
-  const desk = new THREE.Mesh(deskGeo, materials.modernWoodSiding);
-  desk.position.set(bWidth / 2 - 0.8, 0.34 + 0.375, 0);
-  desk.castShadow = true;
-  pavilionGroup.add(desk);
-
-  // Dual widescreen workstation monitors
-  const monGeo = new THREE.BoxGeometry(0.04, 0.5, 0.9);
-  const monMat = new THREE.MeshBasicMaterial({ color: 0x0f172a });
-  const mon1 = new THREE.Mesh(monGeo, monMat);
-  mon1.position.set(bWidth / 2 - 0.8, 0.34 + 0.75 + 0.3, -0.55);
-  mon1.rotation.y = 0.15;
-  pavilionGroup.add(mon1);
-
-  const mon2 = new THREE.Mesh(monGeo, monMat);
-  mon2.position.set(bWidth / 2 - 0.8, 0.34 + 0.75 + 0.3, 0.55);
-  mon2.rotation.y = -0.15;
-  pavilionGroup.add(mon2);
-
-  // Monitor cyan code displays
-  const screenGeo = new THREE.PlaneGeometry(0.86, 0.46);
-  screenGeo.rotateY(-Math.PI / 2);
-  const scrMat = new THREE.MeshBasicMaterial({ color: 0x06b6d4 });
-  const scr1 = new THREE.Mesh(screenGeo, scrMat);
-  scr1.position.set(bWidth / 2 - 0.83, 0.34 + 0.75 + 0.3, -0.55);
-  scr1.rotation.y = 0.15;
-  pavilionGroup.add(scr1);
-
-  const scr2 = new THREE.Mesh(screenGeo, scrMat);
-  scr2.position.set(bWidth / 2 - 0.83, 0.34 + 0.75 + 0.3, 0.55);
-  scr2.rotation.y = -0.15;
-  pavilionGroup.add(scr2);
+  // 6. Explorable Interior Architecture & 8 Dedicated Interactive Spaces
+  // (Sliding Doors, Reception, Workstation Rig, Holographic Showcase, Dev Gallery, Shahanur Mollah Portrait, Relaxation Lounge, Rooftop Viewing Deck)
+  const interiorResult = createCreatorPavilionInterior(materials, clickableBuildings);
+  pavilionGroup.add(interiorResult.interiorGroup);
 
   // 7. Landscaped Garden, Pathway Bollards & Outdoor Seating
   // Contemporary timber slat garden benches
@@ -2068,6 +1999,7 @@ function createCreatorPavilion(
   pavilionGroup.add(threshRing);
 
   group.add(pavilionGroup);
+  return interiorResult;
 }
 
 // -----------------------------------------------------------------------------

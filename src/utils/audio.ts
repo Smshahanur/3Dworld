@@ -126,6 +126,97 @@ class AudioManager {
     this.playChime(880); // High A chime
   }
 
+  // Bird chirp synthesis using quick frequency modulation
+  public playBirdChirp() {
+    if (!this.isPlaying || !this.ctx || !this.masterGain) return;
+    try {
+      const t = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(2200, t);
+      osc.frequency.exponentialRampToValueAtTime(3400, t + 0.08);
+      osc.frequency.exponentialRampToValueAtTime(2600, t + 0.16);
+
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.linearRampToValueAtTime(0.035, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+
+      osc.start(t);
+      osc.stop(t + 0.25);
+    } catch {}
+  }
+
+  // Water splash / fountain ripple chime
+  public playWaterSplash() {
+    if (!this.isPlaying || !this.ctx || !this.masterGain) return;
+    try {
+      const t = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(800, t);
+      osc.frequency.exponentialRampToValueAtTime(1250, t + 0.15);
+
+      gain.gain.setValueAtTime(0.04, t);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+
+      osc.start(t);
+      osc.stop(t + 0.52);
+    } catch {}
+  }
+
+  // Friendly soft chord for NPC conversation initiation
+  public playNPCGreeting() {
+    if (!this.ctx) this.init();
+    if (!this.ctx) return;
+    try {
+      const t = this.ctx.currentTime;
+      const notes = [523.25, 659.25, 783.99]; // C5, E5, G5 major triad
+      notes.forEach((freq, idx) => {
+        const osc = this.ctx!.createOscillator();
+        const gain = this.ctx!.createGain();
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, t + idx * 0.05);
+
+        gain.gain.setValueAtTime(0.045, t + idx * 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + idx * 0.05 + 0.6);
+
+        osc.connect(gain);
+        gain.connect(this.masterGain || this.ctx!.destination);
+
+        osc.start(t + idx * 0.05);
+        osc.stop(t + idx * 0.05 + 0.65);
+      });
+    } catch {}
+  }
+
+  // Feedback for player gestures (Wave, Cheer, Sit)
+  public playGestureSound(gesture: string = 'wave') {
+    if (!this.ctx) this.init();
+    if (!this.ctx) return;
+    try {
+      if (gesture === 'wave') {
+        this.playChime(783.99); // G5 chime
+      } else if (gesture === 'cheer') {
+        this.playChime(1046.50); // High C6 chime
+      } else if (gesture === 'sit') {
+        this.playChime(440.00); // A4 grounding tone
+      } else if (gesture === 'dance') {
+        this.playChime(880.00);
+      }
+    } catch {}
+  }
+
   private scheduleNextChime = () => {
     if (!this.isPlaying) return;
     const notes = [587.33, 659.25, 783.99, 880.00, 1046.50]; // D, E, G, A, C (Pentatonic)
@@ -202,3 +293,8 @@ class AudioManager {
 }
 
 export const soundManager = new AudioManager();
+
+export const playBirdChirp = () => soundManager.playBirdChirp();
+export const playWaterSplash = () => soundManager.playWaterSplash();
+export const playNPCGreeting = () => soundManager.playNPCGreeting();
+export const playGestureSound = (gesture: string = 'wave') => soundManager.playGestureSound(gesture);

@@ -11,15 +11,19 @@ import {
   Check,
   AlertCircle,
   Loader2,
+  Briefcase,
 } from 'lucide-react';
 import {
   AvatarColor,
   AvatarType,
+  GenderType,
   AVATAR_COLORS,
   AVATAR_STYLES,
+  AVATAR_SKIN_TONES,
+  AVATAR_HAIRSTYLES,
   MultiplayerUser,
 } from '../multiplayer/types';
-import { multiplayerService } from '../multiplayer/multiplayerService';
+import { multiplayerService, getFriendlyAuthErrorMessage } from '../multiplayer/multiplayerService';
 
 interface MultiplayerModalProps {
   isOpen: boolean;
@@ -40,8 +44,41 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
       return 'Resident_' + Math.floor(100 + Math.random() * 900);
     }
   });
-  const [selectedColor, setSelectedColor] = useState<AvatarColor>('cyan');
-  const [selectedStyle, setSelectedStyle] = useState<AvatarType>('casual');
+  const [selectedColor, setSelectedColor] = useState<AvatarColor>(() => {
+    try {
+      return (localStorage.getItem('3dworld_avatar_color') as AvatarColor) || 'cyan';
+    } catch {
+      return 'cyan';
+    }
+  });
+  const [selectedStyle, setSelectedStyle] = useState<AvatarType>(() => {
+    try {
+      return (localStorage.getItem('3dworld_avatar_style') as AvatarType) || 'casual';
+    } catch {
+      return 'casual';
+    }
+  });
+  const [selectedGender, setSelectedGender] = useState<GenderType>(() => {
+    try {
+      return (localStorage.getItem('3dworld_avatar_gender') as GenderType) || 'male';
+    } catch {
+      return 'male';
+    }
+  });
+  const [selectedSkinTone, setSelectedSkinTone] = useState<string>(() => {
+    try {
+      return localStorage.getItem('3dworld_avatar_skin_tone') || 'fair';
+    } catch {
+      return 'fair';
+    }
+  });
+  const [selectedHairStyle, setSelectedHairStyle] = useState<string>(() => {
+    try {
+      return localStorage.getItem('3dworld_avatar_hair_style') || 'short_crop';
+    } catch {
+      return 'short_crop';
+    }
+  });
 
   // Account inputs
   const [email, setEmail] = useState('');
@@ -57,12 +94,19 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
     setIsLoading(true);
 
     try {
-      const user = await multiplayerService.signInAsGuest(displayName, selectedColor, selectedStyle);
+      const user = await multiplayerService.signInAsGuest(
+        displayName,
+        selectedColor,
+        selectedStyle,
+        selectedGender,
+        selectedSkinTone,
+        selectedHairStyle
+      );
       onJoined(user);
       onClose();
     } catch (err: unknown) {
-      console.error(err);
-      setErrorMsg((err as Error)?.message || 'Failed to enter multiplayer world.');
+      console.warn('[Multiplayer Guest Play]', (err as Error)?.message || err);
+      setErrorMsg(getFriendlyAuthErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -75,12 +119,19 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
 
     try {
       const user = await multiplayerService.signInWithEmail(email, password);
-      multiplayerService.updateProfileSettings(user.displayName, selectedColor, selectedStyle);
+      multiplayerService.updateProfileSettings(
+        user.displayName,
+        selectedColor,
+        selectedStyle,
+        selectedGender,
+        selectedSkinTone,
+        selectedHairStyle
+      );
       onJoined(user);
       onClose();
     } catch (err: unknown) {
-      console.error(err);
-      setErrorMsg((err as Error)?.message || 'Sign in failed. Please check your credentials.');
+      console.warn('[Multiplayer Sign In]', (err as Error)?.message || err);
+      setErrorMsg(getFriendlyAuthErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -97,13 +148,16 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
         password,
         displayName,
         selectedColor,
-        selectedStyle
+        selectedStyle,
+        selectedGender,
+        selectedSkinTone,
+        selectedHairStyle
       );
       onJoined(user);
       onClose();
     } catch (err: unknown) {
-      console.error(err);
-      setErrorMsg((err as Error)?.message || 'Sign up failed. Password must be at least 6 characters.');
+      console.warn('[Multiplayer Sign Up]', (err as Error)?.message || err);
+      setErrorMsg(getFriendlyAuthErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -191,9 +245,37 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
         {/* Scrollable Body */}
         <div className="overflow-y-auto p-5 space-y-4">
           {errorMsg && (
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-red-950/50 border border-red-500/40 text-red-200 text-xs animate-in fade-in duration-200">
-              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-              <span>{errorMsg}</span>
+            <div className="p-3 rounded-xl bg-red-950/60 border border-red-500/40 text-red-200 text-xs animate-in fade-in duration-200 space-y-2">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <span className="leading-relaxed">{errorMsg}</span>
+              </div>
+              {authTab === 'signin' && (
+                <div className="flex items-center gap-2 pt-1.5 border-t border-red-500/20 text-[11px]">
+                  <span className="text-slate-400">Need an account?</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthTab('signup');
+                      setErrorMsg('');
+                    }}
+                    className="text-cyan-300 hover:text-white font-semibold underline underline-offset-2 cursor-pointer"
+                  >
+                    Click to Register
+                  </button>
+                  <span className="text-slate-500">•</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthTab('guest');
+                      setErrorMsg('');
+                    }}
+                    className="text-cyan-300 hover:text-white font-semibold underline underline-offset-2 cursor-pointer"
+                  >
+                    Play as Guest
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -217,26 +299,86 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
               />
             </div>
 
-            {/* Color Palette */}
+            {/* Gender Selection */}
             <div>
-              <span className="text-[11px] text-slate-400 block mb-1.5">Avatar Color</span>
-              <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
-                {AVATAR_COLORS.map((col) => {
-                  const isSelected = selectedColor === col.id;
+              <span className="text-[11px] text-slate-400 block mb-1.5">Avatar Form</span>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedGender('male')}
+                  className={`py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer border ${
+                    selectedGender === 'male'
+                      ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200 shadow-sm'
+                      : 'bg-black/30 border-white/5 text-slate-400 hover:text-white hover:border-white/20'
+                  }`}
+                >
+                  <User className="w-3.5 h-3.5 text-cyan-400" />
+                  Male Human
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedGender('female')}
+                  className={`py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer border ${
+                    selectedGender === 'female'
+                      ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200 shadow-sm'
+                      : 'bg-black/30 border-white/5 text-slate-400 hover:text-white hover:border-white/20'
+                  }`}
+                >
+                  <User className="w-3.5 h-3.5 text-pink-400" />
+                  Female Human
+                </button>
+              </div>
+            </div>
+
+            {/* Skin Tone Palette */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[11px] text-slate-400">Skin Complexion</span>
+                <span className="text-[10px] text-cyan-300">
+                  {AVATAR_SKIN_TONES.find((s) => s.id === selectedSkinTone)?.label || 'Natural'}
+                </span>
+              </div>
+              <div className="grid grid-cols-6 gap-2">
+                {AVATAR_SKIN_TONES.map((tone) => {
+                  const isSelected = selectedSkinTone === tone.id;
                   return (
                     <button
-                      key={col.id}
+                      key={tone.id}
                       type="button"
-                      onClick={() => setSelectedColor(col.id)}
-                      title={col.label}
-                      className={`h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer relative border ${
+                      onClick={() => setSelectedSkinTone(tone.id)}
+                      title={tone.label}
+                      className={`h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border ${
                         isSelected
-                          ? 'border-white scale-105 shadow-md shadow-cyan-500/20 ring-2 ring-cyan-400/50'
+                          ? 'border-white scale-110 shadow-md ring-2 ring-cyan-400/60'
                           : 'border-white/10 hover:border-white/40'
                       }`}
-                      style={{ backgroundColor: col.hex }}
+                      style={{ backgroundColor: tone.hex }}
                     >
-                      {isSelected && <Check className="w-4 h-4 text-white drop-shadow" />}
+                      {isSelected && <Check className="w-3.5 h-3.5 text-black drop-shadow" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Hairstyle Selection */}
+            <div>
+              <span className="text-[11px] text-slate-400 block mb-1.5">Hairstyle</span>
+              <div className="grid grid-cols-3 gap-1.5">
+                {AVATAR_HAIRSTYLES.map((hair) => {
+                  const isSelected = selectedHairStyle === hair.id;
+                  return (
+                    <button
+                      key={hair.id}
+                      type="button"
+                      onClick={() => setSelectedHairStyle(hair.id)}
+                      className={`py-1.5 px-2 rounded-lg text-[11px] font-medium text-center truncate transition-all cursor-pointer border ${
+                        isSelected
+                          ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                          : 'bg-black/30 border-white/5 text-slate-400 hover:text-white hover:border-white/20'
+                      }`}
+                    >
+                      {hair.label}
                     </button>
                   );
                 })}
@@ -245,12 +387,16 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
 
             {/* Avatar Style Outfit */}
             <div>
-              <span className="text-[11px] text-slate-400 block mb-1.5">Avatar Outfit Style</span>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <span className="text-[11px] text-slate-400 block mb-1.5">Clothing Attire</span>
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
                 {AVATAR_STYLES.map((sty) => {
                   const isSelected = selectedStyle === sty.id;
                   const Icon =
-                    sty.id === 'explorer'
+                    sty.id === 'formal'
+                      ? Briefcase
+                      : sty.id === 'traditional'
+                      ? Sparkles
+                      : sty.id === 'explorer'
                       ? Compass
                       : sty.id === 'builder'
                       ? Hammer
@@ -262,14 +408,41 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
                       key={sty.id}
                       type="button"
                       onClick={() => setSelectedStyle(sty.id)}
-                      className={`p-2 rounded-lg flex flex-col items-center gap-1 text-center transition-all cursor-pointer border ${
+                      title={sty.description}
+                      className={`p-1.5 rounded-lg flex flex-col items-center gap-1 text-center transition-all cursor-pointer border ${
                         isSelected
                           ? 'bg-cyan-500/20 border-cyan-400/50 text-cyan-200'
                           : 'bg-black/30 border-white/5 text-slate-400 hover:border-white/20 hover:text-white'
                       }`}
                     >
-                      <Icon className="w-4 h-4" />
-                      <span className="text-xs font-medium">{sty.label}</span>
+                      <Icon className="w-3.5 h-3.5" />
+                      <span className="text-[11px] font-medium truncate w-full">{sty.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Color Palette */}
+            <div>
+              <span className="text-[11px] text-slate-400 block mb-1.5">Accent Color</span>
+              <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+                {AVATAR_COLORS.map((col) => {
+                  const isSelected = selectedColor === col.id;
+                  return (
+                    <button
+                      key={col.id}
+                      type="button"
+                      onClick={() => setSelectedColor(col.id)}
+                      title={col.label}
+                      className={`h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer relative border ${
+                        isSelected
+                          ? 'border-white scale-105 shadow-md shadow-cyan-500/20 ring-2 ring-cyan-400/50'
+                          : 'border-white/10 hover:border-white/40'
+                      }`}
+                      style={{ backgroundColor: col.hex }}
+                    >
+                      {isSelected && <Check className="w-3.5 h-3.5 text-white drop-shadow" />}
                     </button>
                   );
                 })}

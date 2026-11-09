@@ -436,6 +436,9 @@ export class SpatialAuditSystem {
       for (let j = i + 1; j < buildings.length; j++) {
         const b1 = buildings[i];
         const b2 = buildings[j];
+        if (b1.id.startsWith('creator-pavilion') && b2.id.startsWith('creator-pavilion')) {
+          continue;
+        }
         if (testOverlap(b1.minX, b1.maxX, b1.minZ, b1.maxZ, b2.minX, b2.maxX, b2.minZ, b2.maxZ)) {
           overlaps.push({
             entityA: b1,
