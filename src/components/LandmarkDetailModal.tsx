@@ -135,6 +135,31 @@ export const LandmarkDetailModal: React.FC<LandmarkDetailModalProps> = ({
             <span>Re-Focus Camera Angle</span>
           </button>
 
+          {/* Dedicated SEO Page Guide Link */}
+          {(() => {
+            const pageMap: Record<string, string> = {
+              'rural-village': '/rural-village/',
+              'modern-village': '/modern-village/',
+              'capital-town': '/capital-town/',
+              'central-park': '/central-park/',
+              'botanical-garden': '/botanical-garden/',
+              'lake-district': '/lake-district/',
+              'creator-pavilion': '/creator/',
+            };
+            const guideUrl = pageMap[landmark.id];
+            if (!guideUrl) return null;
+            return (
+              <a
+                href={guideUrl}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white font-medium text-xs transition-all flex items-center justify-center gap-1.5"
+                title={`Read full guide for ${landmark.name}`}
+              >
+                <span>Read Full Guide</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </a>
+            );
+          })()}
+
           <button
             onClick={() => onSelectNext(nextLocation)}
             className="w-full sm:w-auto px-4 py-2.5 rounded-xl glass-panel border border-white/10 hover:border-cyan-400/40 text-slate-300 hover:text-white font-medium text-xs transition-all cursor-pointer flex items-center justify-center gap-2 group"

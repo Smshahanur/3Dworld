@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+    <title>About the Creator — Shahanur Mollah | 3DWorld Developer & Architect</title>
+    <meta
+      name="description"
+      content="Learn about Shahanur Mollah, Creator & Developer of 3DWorld. Discover the engineering journey behind this interactive 3D virtual universe, Three.js architecture, and the Creator Pavilion."
+    />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <link rel="canonical" href="https://3dworld-alpha-virid.vercel.app/creator/" />
+    <meta name="theme-color" content="#f43f5e" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="profile" />
+    <meta property="og:url" content="https://3dworld-alpha-virid.vercel.app/creator/" />
+    <meta property="og:title" content="About the Creator — Shahanur Mollah | 3DWorld" />
+    <meta
+      property="og:description"
+      content="Meet Shahanur Mollah, Creator & Developer of 3DWorld. Explore his background, technical philosophy, and the dedicated 3D Creator Pavilion."
+    />
+    <meta property="og:image" content="https://3dworld-alpha-virid.vercel.app/assets/aistudio/20261104_090030_5aeb97d7.jpg" />
+    <meta property="og:image:alt" content="Portrait of Shahanur Mollah, Creator of 3DWorld" />
+    <meta property="og:site_name" content="3DWorld" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="About the Creator — Shahanur Mollah | 3DWorld" />
+    <meta
+      name="twitter:description"
+      content="Discover the engineering, creative vision, and interactive pavilion of Shahanur Mollah, Creator of 3DWorld."
+    />
+    <meta name="twitter:image" content="https://3dworld-alpha-virid.vercel.app/assets/aistudio/20261104_090030_5aeb97d7.jpg" />
+
+    <!-- Google Search Console verification -->
+    <meta name="google-site-verification" content="ci49ZoPsQaIdKucUGiJXXPcg7_97_5wrK8ISnPa_WQw" />
+
+    <!-- Structured Data: ProfilePage + Person (Shahanur Mollah) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "ProfilePage",
+          "@id": "https://3dworld-alpha-virid.vercel.app/creator/#page",
+          "url": "https://3dworld-alpha-virid.vercel.app/creator/",
+          "name": "About the Creator — Shahanur Mollah | 3DWorld Developer & Architect",
+          "description": "Learn about Shahanur Mollah, Creator & Developer of 3DWorld. Discover the engineering journey behind this interactive 3D virtual universe, Three.js architecture, and the Creator Pavilion.",
+          "isPartOf": {
+            "@type": "WebSite",
+            "@id": "https://3dworld-alpha-virid.vercel.app/#website",
+            "name": "3DWorld",
+            "url": "https://3dworld-alpha-virid.vercel.app/"
+          },
+          "mainEntity": {
+            "@type": "Person",
+            "@id": "https://3dworld-alpha-virid.vercel.app/#creator",
+            "name": "Shahanur Mollah",
+            "jobTitle": "Creator & Developer of 3DWorld",
+            "description": "Creator & Developer of 3DWorld, an interactive 3D virtual universe featuring realistic environments, intelligent NPCs, EV physics, and multiplayer synchronization.",
+            "url": "https://3dworld-alpha-virid.vercel.app/creator/",
+            "image": "https://3dworld-alpha-virid.vercel.app/assets/aistudio/20261104_090030_5aeb97d7.jpg",
+            "sameAs": [
+              "https://www.instagram.com/shahanurmollah__"
+            ]
+          },
+          "breadcrumb": {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "Home",
+                "item": "https://3dworld-alpha-virid.vercel.app/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Creator",
+                "item": "https://3dworld-alpha-virid.vercel.app/creator/"
+              }
+            ]
+          }
+        }
+      ]
+    }
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
+
+    <style>
+      :root {
+        --rose-500: #f43f5e;
+        --rose-400: #fb7185;
+        --rose-600: #e11d48;
+        --slate-900: #090d16;
+        --slate-800: #131c2e;
+        --slate-700: #1e293b;
+        --slate-400: #94a3b8;
+        --slate-100: #f1f5f9;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: #060911;
+        color: #e2e8f0;
+        line-height: 1.65;
+        overflow-x: hidden;
+      }
+      h1, h2, h3, h4 {
+        font-family: 'Space Grotesk', sans-serif;
+        color: #f8fafc;
+        letter-spacing: -0.02em;
+      }
+      a { color: inherit; text-decoration: none; }
+      .container { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+      .nav-bar {
+        position: sticky; top: 0; z-index: 50;
+        backdrop-filter: blur(16px);
+        background: rgba(6, 9, 17, 0.85);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .nav-inner {
+        display: flex; align-items: center; justify-content: space-between;
+        height: 72px;
+      }
+      .brand-title {
+        font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 10px;
+        color: #fff;
+      }
+      .brand-badge {
+        font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em;
+        padding: 3px 8px; border-radius: 999px;
+        background: rgba(244, 63, 94, 0.15); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.35);
+      }
+      .nav-links { display: flex; align-items: center; gap: 20px; font-size: 0.92rem; font-weight: 500; }
+      .nav-links a { color: #94a3b8; transition: color 0.2s; }
+      .nav-links a:hover, .nav-links a.active { color: #fff; }
+      .btn-primary {
+        display: inline-flex; align-items: center; gap: 8px;
+        background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
+        color: #fff; font-weight: 600; padding: 10px 20px; border-radius: 10px;
+        box-shadow: 0 4px 18px rgba(244, 63, 94, 0.35);
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+      .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(244, 63, 94, 0.45);
+      }
+      .btn-secondary {
+        display: inline-flex; align-items: center; gap: 8px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: #f1f5f9; font-weight: 600; padding: 10px 20px; border-radius: 10px;
+        transition: background 0.2s, border-color 0.2s;
+      }
+      .btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.12);
+        border-color: rgba(255, 255, 255, 0.25);
+      }
+      .hero {
+        position: relative; padding: 80px 0 60px;
+        background: radial-gradient(circle at 50% 20%, rgba(244, 63, 94, 0.15) 0%, rgba(6, 9, 17, 0) 70%);
+      }
+      .breadcrumbs {
+        display: flex; gap: 8px; align-items: center; font-size: 0.85rem; color: #64748b; margin-bottom: 20px;
+      }
+      .breadcrumbs a { color: #94a3b8; }
+      .breadcrumbs a:hover { color: #fb7185; }
+      .hero-tag {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 5px 12px; border-radius: 999px;
+        background: rgba(244, 63, 94, 0.12); border: 1px solid rgba(244, 63, 94, 0.3);
+        color: #fb7185; font-size: 0.82rem; font-weight: 600; margin-bottom: 18px;
+      }
+      .profile-grid {
+        display: grid; grid-template-columns: 280px 1fr; gap: 48px; align-items: start; margin-top: 20px;
+      }
+      .portrait-box {
+        position: relative; border-radius: 20px; overflow: hidden;
+        border: 2px solid rgba(244, 63, 94, 0.4);
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(244, 63, 94, 0.2);
+        aspect-ratio: 3/4; background: #131c2e;
+      }
+      .portrait-box img {
+        width: 100%; height: 100%; object-fit: cover; display: block;
+      }
+      .portrait-badge {
+        position: absolute; bottom: 12px; left: 12px; right: 12px;
+        background: rgba(9, 13, 22, 0.85); backdrop-filter: blur(8px);
+        padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.1);
+        text-align: center; font-size: 0.8rem; font-weight: 600; color: #f1f5f9;
+      }
+      .profile-info h1 { font-size: clamp(2.2rem, 5vw, 3.4rem); line-height: 1.15; margin-bottom: 8px; font-weight: 800; }
+      .creator-subtitle { font-size: 1.2rem; color: #fb7185; font-weight: 600; margin-bottom: 20px; }
+      .lead { font-size: 1.1rem; color: #cbd5e1; margin-bottom: 24px; }
+      .social-row { display: flex; align-items: center; gap: 14px; margin-bottom: 30px; }
+      .social-chip {
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 8px 16px; border-radius: 999px;
+        background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+        color: #f1f5f9; font-size: 0.88rem; font-weight: 600; transition: all 0.2s;
+      }
+      .social-chip:hover {
+        background: rgba(244, 63, 94, 0.15); border-color: rgba(244, 63, 94, 0.4); color: #fff;
+      }
+      .cta-group { display: flex; flex-wrap: wrap; gap: 14px; }
+      .card-grid {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 24px; margin-top: 40px;
+      }
+      .card {
+        background: linear-gradient(180deg, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.5) 100%);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 16px; padding: 28px;
+        transition: transform 0.25s, border-color 0.25s;
+      }
+      .card:hover { transform: translateY(-3px); border-color: rgba(244, 63, 94, 0.4); }
+      .card-icon {
+        width: 48px; height: 48px; border-radius: 12px;
+        background: rgba(244, 63, 94, 0.15); color: #fb7185;
+        display: flex; align-items: center; justify-content: center;
+        margin-bottom: 18px; font-size: 1.4rem;
+      }
+      .card h3 { font-size: 1.25rem; margin-bottom: 10px; }
+      .card p { font-size: 0.95rem; color: #94a3b8; }
+      .section { padding: 60px 0; border-top: 1px solid rgba(255, 255, 255, 0.06); }
+      .section-header { text-align: left; max-width: 680px; margin-bottom: 40px; }
+      .section-header h2 { font-size: 2rem; margin-bottom: 12px; }
+      .section-header p { color: #94a3b8; font-size: 1rem; }
+      .specs-table {
+        width: 100%; border-collapse: collapse; margin-top: 24px;
+        background: rgba(19, 28, 46, 0.4); border-radius: 12px; overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .specs-table th, .specs-table td {
+        padding: 14px 20px; text-align: left; font-size: 0.92rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .specs-table th { background: rgba(255, 255, 255, 0.03); color: #cbd5e1; font-weight: 600; width: 35%; }
+      .specs-table td { color: #94a3b8; }
+      .district-links {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 30px;
+      }
+      .district-pill {
+        display: flex; align-items: center; gap: 12px;
+        padding: 16px 20px; border-radius: 12px;
+        background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08);
+        transition: all 0.2s;
+      }
+      .district-pill:hover { background: rgba(244, 63, 94, 0.08); border-color: rgba(244, 63, 94, 0.3); transform: translateX(3px); }
+      .district-pill .pill-dot { width: 10px; height: 10px; border-radius: 50%; background: #f43f5e; }
+      .district-pill .pill-title { font-weight: 600; font-size: 0.95rem; color: #f1f5f9; }
+      footer {
+        padding: 60px 0 40px; border-top: 1px solid rgba(255, 255, 255, 0.08);
+        background: #04060b; color: #64748b; font-size: 0.88rem;
+      }
+      .footer-inner {
+        display: flex; flex-wrap: wrap; justify-content: space-between; gap: 30px; margin-bottom: 40px;
+      }
+      .footer-links { display: flex; flex-direction: column; gap: 10px; }
+      .footer-links a:hover { color: #fb7185; }
+      @media (max-width: 820px) {
+        .profile-grid { grid-template-columns: 1fr; gap: 28px; }
+        .portrait-box { max-width: 240px; margin: 0 auto; }
+        .nav-links { display: none; }
+        .hero { padding: 48px 0; }
+        .cta-group { flex-direction: column; }
+        .btn-primary, .btn-secondary { width: 100%; justify-content: center; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="nav-bar">
+      <div class="container nav-inner">
+        <a href="/" class="brand-title">
+          <span>3DWorld</span>
+          <span class="brand-badge">Creator</span>
+        </a>
+        <nav class="nav-links">
+          <a href="/">3D Universe</a>
+          <a href="/rural-village/">Rural Village</a>
+          <a href="/modern-village/">Modern Village</a>
+          <a href="/capital-town/">Capital Town</a>
+          <a href="/central-park/">Central Park</a>
+          <a href="/botanical-garden/">Botanical Garden</a>
+          <a href="/lake-district/">Lake District</a>
+          <a href="/creator/" class="active">Creator</a>
+        </nav>
+        <a href="/?district=creator" class="btn-primary">
+          <span>Enter 3D Pavilion</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </a>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="container">
+          <nav class="breadcrumbs" aria-label="Breadcrumb">
+            <a href="/">Home</a>
+            <span>/</span>
+            <span style="color: #cbd5e1;">About the Creator</span>
+          </nav>
+
+          <div class="profile-grid">
+            <div class="portrait-box">
+              <img
+                src="/assets/aistudio/20261104_090030_5aeb97d7.jpg"
+                alt="Portrait of Shahanur Mollah, Creator & Developer of 3DWorld"
+                width="280"
+                height="373"
+                loading="eager"
+              />
+              <div class="portrait-badge">Shahanur Mollah &bull; Creator & Developer</div>
+            </div>
+
+            <div class="profile-info">
+              <span class="hero-tag">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                Architect & Software Engineer
+              </span>
+
+              <h1>Shahanur Mollah</h1>
+              <div class="creator-subtitle">Creator &amp; Developer of 3DWorld</div>
+
+              <p class="lead">
+                Shahanur Mollah is the creator and software architect behind 3DWorld, an expansive interactive virtual universe built with Three.js, WebGL, custom vehicle dynamics, real-time multiplayer networking, and intelligent NPC behavior systems.
+              </p>
+
+              <div class="social-row">
+                <a
+                  href="https://www.instagram.com/shahanurmollah__"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="social-chip"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+                  <span>@shahanurmollah__</span>
+                </a>
+                <span style="color: #64748b; font-size: 0.85rem;">Official Creator Profile</span>
+              </div>
+
+              <div class="cta-group">
+                <a href="/?district=creator" class="btn-primary">
+                  <span>Explore Creator Pavilion in 3D</span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+                </a>
+                <a href="#pavilion" class="btn-secondary">Inside the Pavilion</a>
+                <a href="#engineering" class="btn-secondary">Technical Architecture</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="pavilion">
+        <div class="container">
+          <div class="section-header">
+            <h2>The 3DWorld Creator Pavilion</h2>
+            <p>
+              Visitors to 3DWorld can walk directly into the architecturally designed Creator Pavilion located at coordinates X: 27.5, Y: 2.0, Z: 15.0 in the Modern Village.
+            </p>
+          </div>
+
+          <div class="card-grid">
+            <article class="card">
+              <div class="card-icon">&#128682;</div>
+              <h3>Automatic Glass Sliding Doors</h3>
+              <p>
+                Proximity-triggered double sliding glass entrance doors with smooth kinematic opening animations and mechanical audio cues.
+              </p>
+            </article>
+
+            <article class="card">
+              <div class="card-icon">&#128187;</div>
+              <h3>Creator Workstation</h3>
+              <p>
+                An interactive developer command deck featuring ultra-wide multi-monitor setups displaying 3D world telemetry, code editors, and futuristic accent lighting.
+              </p>
+            </article>
+
+            <article class="card">
+              <div class="card-icon">&#127912;</div>
+              <h3>Digital Development Gallery</h3>
+              <p>
+                Interactive gallery displays tracing the evolution of 3DWorld from initial wireframes to living three-district architecture with traffic and weather.
+              </p>
+            </article>
+
+            <article class="card">
+              <div class="card-icon">&#128444;</div>
+              <h3>Portrait Exhibit</h3>
+              <p>
+                A high-resolution illuminated portrait installation of Shahanur Mollah, welcoming visitors to the virtual development studio.
+              </p>
+            </article>
+
+            <article class="card">
+              <div class="card-icon">&#9749;</div>
+              <h3>Relaxation Lounge</h3>
+              <p>
+                Leather sofas, lush indoor fiddle-leaf plants, and floor-to-ceiling panoramic glass windows looking out over the village promenade.
+              </p>
+            </article>
+
+            <article class="card">
+              <div class="card-icon">&#127960;</div>
+              <h3>Rooftop Viewing Terrace</h3>
+              <p>
+                An elevated rooftop observation deck providing 360-degree vistas across the Rural Village farms, suspension bridge, and Capital Town skyline.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="engineering">
+        <div class="container">
+          <div class="section-header">
+            <h2>Technical Architecture & Philosophy</h2>
+            <p>How Shahanur Mollah engineered 3DWorld from the ground up.</p>
+          </div>
+
+          <div class="card-grid">
+            <article class="card">
+              <div class="card-icon">&#9889;</div>
+              <h3>WebGL & Three.js Engine</h3>
+              <p>
+                Custom shaders for water caustics, volumetric day/night lighting, real-time shadow cascades, and optimized draw-call batching for smooth 60fps across mobile and desktop.
+              </p>
+            </article>
+
+            <article class="card">
+              <div class="card-icon">&#128663;</div>
+              <h3>EV Driving Dynamics</h3>
+              <p>
+                Rigid-body wheel friction physics, Ackermann steering kinematics, regenerative braking deceleration, and interactive AI traffic navigation.
+              </p>
+            </article>
+
+            <article class="card">
+              <div class="card-icon">&#127760;</div>
+              <h3>Persistent Multiplayer</h3>
+              <p>
+                Real-time player position syncing via Firebase Firestore and WebSockets with dead reckoning interpolation, custom chat channels, and interactive emotes.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <div class="section-header">
+            <h2>Creator Pavilion Specifications</h2>
+            <p>Spatial coordinates and pavilion parameters.</p>
+          </div>
+
+          <table class="specs-table">
+            <tbody>
+              <tr>
+                <th scope="row">Pavilion Coordinates</th>
+                <td>X: 27.5, Y: 2.0, Z: 15.0</td>
+              </tr>
+              <tr>
+                <th scope="row">Creator Credit</th>
+                <td>Created by Shahanur Mollah</td>
+              </tr>
+              <tr>
+                <th scope="row">Official Role</th>
+                <td>Creator & Developer of 3DWorld</td>
+              </tr>
+              <tr>
+                <th scope="row">Social Handle</th>
+                <td>@shahanurmollah__ (Instagram)</td>
+              </tr>
+              <tr>
+                <th scope="row">Interior Facilities</th>
+                <td>Sliding Doors, Workstation, 3D Showcase, Gallery, Portrait, Rooftop Deck</td>
+              </tr>
+              <tr>
+                <th scope="row">Production URL</th>
+                <td>https://3dworld-alpha-virid.vercel.app/</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <div class="section-header">
+            <h2>Explore 3DWorld Districts</h2>
+            <p>Discover the complete virtual universe designed by Shahanur Mollah.</p>
+          </div>
+
+          <div class="district-links">
+            <a href="/rural-village/" class="district-pill">
+              <span class="pill-dot" style="background: #eab308;"></span>
+              <span class="pill-title">Rural Village</span>
+            </a>
+            <a href="/modern-village/" class="district-pill">
+              <span class="pill-dot" style="background: #3b82f6;"></span>
+              <span class="pill-title">Modern Village</span>
+            </a>
+            <a href="/capital-town/" class="district-pill">
+              <span class="pill-dot" style="background: #a855f7;"></span>
+              <span class="pill-title">Capital Town</span>
+            </a>
+            <a href="/central-park/" class="district-pill">
+              <span class="pill-dot" style="background: #10b981;"></span>
+              <span class="pill-title">Central Park</span>
+            </a>
+            <a href="/botanical-garden/" class="district-pill">
+              <span class="pill-dot" style="background: #14b8a6;"></span>
+              <span class="pill-title">Botanical Garden</span>
+            </a>
+            <a href="/lake-district/" class="district-pill">
+              <span class="pill-dot" style="background: #06b6d4;"></span>
+              <span class="pill-title">Lake District</span>
+            </a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="container">
+        <div class="footer-inner">
+          <div style="max-width: 360px;">
+            <div style="font-weight: 800; font-size: 1.2rem; color: #fff; margin-bottom: 8px;">3DWorld</div>
+            <p>
+              Interactive 3D Virtual Universe created by Shahanur Mollah. Built with Three.js, WebGL, custom physics, and persistent multiplayer synchronization.
+            </p>
+          </div>
+          <div>
+            <div style="font-weight: 700; color: #cbd5e1; margin-bottom: 12px;">Districts</div>
+            <div class="footer-links">
+              <a href="/rural-village/">Rural Village</a>
+              <a href="/modern-village/">Modern Village</a>
+              <a href="/capital-town/">Capital Town</a>
+              <a href="/central-park/">Central Park</a>
+              <a href="/botanical-garden/">Botanical Garden</a>
+              <a href="/lake-district/">Lake District</a>
+            </div>
+          </div>
+          <div>
+            <div style="font-weight: 700; color: #cbd5e1; margin-bottom: 12px;">Creator & Project</div>
+            <div class="footer-links">
+              <a href="/creator/">About Shahanur Mollah</a>
+              <a href="/?district=creator">Enter 3D Pavilion</a>
+              <a href="https://www.instagram.com/shahanurmollah__" target="_blank" rel="noopener noreferrer">Instagram (@shahanurmollah__)</a>
+              <a href="https://github.com" target="_blank" rel="noopener noreferrer">GitHub Source</a>
+            </div>
+          </div>
+        </div>
+        <div style="border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 24px; text-align: center;">
+          &copy; 2026 3DWorld. Created by Shahanur Mollah. All rights reserved.
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -18,8 +18,8 @@ export const Footer: React.FC<FooterProps> = ({ cinemaMode, onOpenCreator }) => 
         {onOpenCreator ? (
           <button
             onClick={onOpenCreator}
-            title="View About the Creator - Shahanur Mollah"
-            aria-label="View About the Creator - Shahanur Mollah"
+            title="View About the Creator - Shahanur Mollah, Creator & Developer of 3DWorld"
+            aria-label="View About the Creator - Shahanur Mollah, Creator & Developer of 3DWorld"
             className="text-teal-400 font-semibold tracking-normal hover:text-teal-300 hover:underline underline-offset-2 transition-colors cursor-pointer inline-flex items-center gap-1"
           >
             <span>Shahanur Mollah</span>
@@ -29,7 +29,7 @@ export const Footer: React.FC<FooterProps> = ({ cinemaMode, onOpenCreator }) => 
             Shahanur Mollah
           </span>
         )}
-        .
+        , Creator &amp; Developer of 3DWorld.
       </p>
     </footer>
   );

@@ -31,10 +31,10 @@ export const HeroOverlay: React.FC<HeroOverlayProps> = ({
         {/* Category Badge */}
         <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 text-[10px] sm:text-xs font-mono uppercase tracking-widest mb-3">
           <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-          <span>Interactive 3D Virtual World</span>
+          <span>Interactive 3D Virtual Universe</span>
         </div>
 
-        {/* Semantic H1: 3DWorld – Explore an Interactive 3D Virtual World */}
+        {/* Semantic H1: 3DWorld by Shahanur Mollah | Interactive 3D Virtual Universe */}
         <h1
           id="hero-title"
           className="font-display font-extrabold text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-[1.15] mb-2.5 sm:mb-3 drop-shadow-md"
@@ -43,12 +43,12 @@ export const HeroOverlay: React.FC<HeroOverlayProps> = ({
             3DWorld
           </span>
           <span className="text-slate-400 font-light mx-2">–</span>
-          <span>Explore an Interactive 3D Virtual World</span>
+          <span>Interactive 3D Virtual Universe</span>
         </h1>
 
         {/* Concise Introduction / Meta Description in visible HTML */}
         <p className="text-slate-300 text-xs sm:text-sm lg:text-[15px] leading-relaxed max-w-md mb-4 sm:mb-5">
-          Explore 3DWorld, an interactive 3D virtual world featuring floating islands, crystal landscapes, futuristic architecture and immersive environments.
+          Explore 3DWorld, an interactive 3D virtual universe created by Shahanur Mollah. Discover virtual villages, modern towns, realistic environments, vehicles and multiplayer exploration.
         </p>
 
         {/* Action Buttons */}

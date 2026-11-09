@@ -279,6 +279,34 @@ export default function App() {
         setLoadProgress(100);
         setTimeout(() => {
           setIsLoaded(true);
+
+          // Deep-linking support: Check URL query parameters (?district=...) or hash for instant district navigation
+          try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const districtParam = (urlParams.get('district') || window.location.hash.replace('#', '')).toLowerCase();
+            if (districtParam) {
+              setHeroDismissed(true);
+
+              if (districtParam === 'creator' || districtParam === 'creator-pavilion') {
+                sm.enterCreatorPavilion();
+                setViewMode('street');
+                setIsInsidePavilion(true);
+              } else {
+                const targetLoc = LOCATIONS.find(
+                  (l) => l.id.toLowerCase() === districtParam ||
+                         l.id.toLowerCase().replace(/_/g, '-') === districtParam ||
+                         l.name.toLowerCase().replace(/\s+/g, '-') === districtParam
+                );
+                if (targetLoc) {
+                  setActiveLocationId(targetLoc.id);
+                  setSelectedLandmark(targetLoc);
+                  sm.travelToLocation(targetLoc);
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('District deep-link parsing ignored:', e);
+          }
         }, 350);
       },
     });
