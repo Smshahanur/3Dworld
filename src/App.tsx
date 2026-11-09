@@ -869,10 +869,40 @@ export default function App() {
           </article>
         </section>
 
+        <section id="districts-directory">
+          <h2>Explore the 3DWorld Districts</h2>
+          <p>
+            Explore all seven public regions and architectural zones across 3DWorld:
+          </p>
+          <ul>
+            <li>
+              <a href="/rural-village/">Rural Village Guide</a> &ndash; Traditional pastoral farmland, organic wheat crops, and mud-stucco thatched cottages on the western plains.
+            </li>
+            <li>
+              <a href="/modern-village/">Modern Village Guide</a> &ndash; Contemporary sustainable villas, the bustling town center plaza, boutique shopping, and artisan espresso cafes.
+            </li>
+            <li>
+              <a href="/capital-town/">Capital Town Guide</a> &ndash; Metropolitan skyline, high-rise commercial center, central transit terminal, and civic municipal plaza.
+            </li>
+            <li>
+              <a href="/central-park/">Central Park Guide</a> &ndash; Manicured lawns, ornamental tiered water fountain, classical gazebo pavilion, and jogging promenade loops.
+            </li>
+            <li>
+              <a href="/botanical-garden/">Botanical Garden Guide</a> &ndash; Geodesic glass conservatory greenhouse, exotic floral parterres, and animated butterfly swarms.
+            </li>
+            <li>
+              <a href="/lake-district/">Lake District Guide</a> &ndash; Illuminated wooden waterfront boardwalk, arched river footbridges, and scenic lake promenades.
+            </li>
+            <li>
+              <a href="/creator/">About the Creator &ndash; Shahanur Mollah</a> &ndash; Learn about the creator and developer of 3DWorld, technical WebGL architecture, and the 3D Creator Pavilion.
+            </li>
+          </ul>
+        </section>
+
         <section id="about-info">
           <h2>About 3DWorld Project</h2>
           <p>
-            3DWorld is an interactive virtual-world experience created by Shahanur Mollah. Explore imaginative landscapes, floating islands, crystal formations, futuristic architecture, and immersive 3D environments.
+            3DWorld is an interactive virtual-world experience created by <a href="/creator/">Shahanur Mollah</a>. Explore imaginative landscapes, floating islands, crystal formations, futuristic architecture, and immersive 3D environments.
           </p>
         </section>
 
