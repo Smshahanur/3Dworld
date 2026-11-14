@@ -8,6 +8,7 @@ import {
   SKIN_TONES,
   HAIR_COLORS,
 } from './humanoidCharacterSystem';
+import { CharacterModelRole } from './glbCharacterLoader';
 import { isPointInDriveableArea } from './collisionSystem';
 
 export interface NPCDialogue {
@@ -1361,8 +1362,17 @@ export class NPCBehaviorManager {
       const startPos = profile.path[0];
       npcGroup.position.set(startPos.x, 0.08, startPos.z);
 
+      const npcGender = profile.avatarOptions.gender === 'female' ? 'female' : 'male';
+      const roleKey: CharacterModelRole =
+        profile.district === 'rural'
+          ? `npc_rural_${npcGender}`
+          : profile.district === 'capital'
+          ? `npc_capital_${npcGender}`
+          : `npc_modern_${npcGender}`;
+
       const rig = createHumanoidCharacter({
         ...profile.avatarOptions,
+        roleKey,
         castShadow: !this.isSoftwareGl,
       });
       npcGroup.add(rig.root);
@@ -1470,7 +1480,7 @@ export class NPCBehaviorManager {
 
       // Distance to camera for Level-of-Detail & CPU optimization
       const distToCamera = npc.group.position.distanceTo(cameraPos);
-      const isCloseToPlayer = distToCamera < 85.0;
+      const isWithinAnimationRange = distToCamera < 110.0;
 
       // 1. Resolve Daily Schedule Routine based on current hour
       const matchingSlot = npc.profile.schedule.find(
@@ -1499,7 +1509,7 @@ export class NPCBehaviorManager {
           playerPos.z - npc.group.position.z
         );
         npc.group.rotation.y += (faceAngle - npc.group.rotation.y) * Math.min(1.0, dt * 6.0);
-        npc.rig.updateAnimation(0, false, false, false, 0, dt, 0, 'wave');
+        npc.rig.updateAnimation(0, false, false, false, 0, dt, 0, 'talk', distToCamera);
         continue;
       }
 
@@ -1514,14 +1524,14 @@ export class NPCBehaviorManager {
           npc.group.rotation.y = npc.profile.chairPosition.rotationY;
         }
         npc.currentGesture = 'sit';
-        npc.rig.updateAnimation(0, false, false, false, 0, dt, 0, 'sit');
+        npc.rig.updateAnimation(0, false, false, false, 0, dt, 0, 'sit', distToCamera);
         continue;
       } else if (matchingSlot.gesture === 'work' && matchingSlot.targetPos) {
         // Stationary work (tending crops, whittling, lab research)
         npc.group.position.x += (matchingSlot.targetPos.x - npc.group.position.x) * Math.min(1.0, dt * 2.0);
         npc.group.position.z += (matchingSlot.targetPos.z - npc.group.position.z) * Math.min(1.0, dt * 2.0);
         npc.currentGesture = 'work';
-        npc.rig.updateAnimation(0, false, false, false, 0, dt, 0, 'work');
+        npc.rig.updateAnimation(0, false, false, false, 0, dt, 0, 'work', distToCamera);
         continue;
       }
 
@@ -1538,7 +1548,7 @@ export class NPCBehaviorManager {
       if (npc.isPausing) {
         npc.pauseTimer -= dt;
         npc.currentGesture = matchingSlot.gesture === 'jog' ? 'idle' : matchingSlot.gesture;
-        npc.rig.updateAnimation(0, false, false, false, 0, dt, 0, npc.currentGesture);
+        npc.rig.updateAnimation(0, false, false, false, 0, dt, 0, npc.currentGesture, distToCamera);
 
         if (npc.pauseTimer <= 0) {
           npc.isPausing = false;
@@ -1577,9 +1587,9 @@ export class NPCBehaviorManager {
         while (diff > Math.PI) diff -= Math.PI * 2;
         npc.group.rotation.y += diff * Math.min(1.0, dt * 7.0);
 
-        // Articulated animation with speed-synchronized cadence
-        if (isCloseToPlayer) {
-          npc.walkCycle += dt * speed * 2.6;
+        // Articulated animation with speed-synchronized cadence & distance LOD
+        if (isWithinAnimationRange) {
+          npc.walkCycle += dt * speed * 3.4;
           npc.currentGesture = matchingSlot.gesture;
           npc.rig.updateAnimation(
             npc.walkCycle,
@@ -1589,7 +1599,8 @@ export class NPCBehaviorManager {
             0,
             dt,
             speed,
-            matchingSlot.gesture === 'jog' ? 'jog' : 'none'
+            matchingSlot.gesture === 'jog' ? 'jog' : 'none',
+            distToCamera
           );
         }
       }

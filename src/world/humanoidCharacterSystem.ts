@@ -1,12 +1,22 @@
 /**
- * 3DWorld Humanoid Character System
- * High-Quality Anatomical Human Character Architecture & Realistic Physics Rig
+ * 3DWorld High-Fidelity Realistic Humanoid Character System
  *
- * Implements natural adult human proportions, detailed facial structure, volumetric hair,
- * fabric-textured modern clothing, and authentic articulated skeletal kinematics.
+ * Implements realistic adult human anatomy and body proportions, sculpted facial features
+ * (cranium, eyes with limbal rings and pupils, eyelids, nose with bridge and alar wings,
+ * philtrum, contoured lips, ears with helix and concha), volumetric multi-lock hair,
+ * fabric-textured modern clothing, articulated hands with individual fingers,
+ * anatomically contoured limbs with knees and ankles, and physics-calibrated skeletal kinematics.
  */
 
 import * as THREE from 'three';
+import {
+  characterAssetManager,
+  CharacterLoadError,
+  CharacterModelRole,
+  GLBCharacterInstance,
+  ModelInspectionReport,
+  SkeletalAnimState,
+} from './glbCharacterLoader';
 
 export type HumanGender = 'male' | 'female';
 
@@ -46,9 +56,22 @@ export interface HumanoidOptions {
   eyeColor?: string | number;
   heightScale?: number;
   castShadow?: boolean;
+  roleKey?: CharacterModelRole;
+  strictAssetRequired?: boolean;
 }
 
-export type HumanoidGesture = 'none' | 'idle' | 'walk' | 'sit' | 'wave' | 'cheer' | 'work' | 'jog' | 'dance';
+export type HumanoidGesture =
+  | 'none'
+  | 'idle'
+  | 'walk'
+  | 'sit'
+  | 'wave'
+  | 'cheer'
+  | 'work'
+  | 'jog'
+  | 'dance'
+  | 'talk'
+  | 'carry';
 
 export interface HumanoidRig {
   root: THREE.Group;
@@ -75,13 +98,45 @@ export interface HumanoidRig {
     verticalVelocity: number,
     dt: number,
     movementSpeed?: number,
-    gesture?: HumanoidGesture
+    gesture?: HumanoidGesture,
+    cameraDistance?: number,
+    angularTurnRate?: number
   ) => void;
+  getRigMode: () => 'glb' | 'fbx' | 'loading' | 'error' | 'procedural_fallback';
+  getLoadedClipNames: () => string[];
+  getLoadError: () => CharacterLoadError | null;
+  getModelInspection: () => ModelInspectionReport | null;
+  hotSwapPromise?: Promise<void>;
   dispose: () => void;
 }
 
+function mapToSkeletalAnimState(
+  isMoving: boolean,
+  isSprinting: boolean,
+  isJumping: boolean,
+  movementSpeed: number,
+  gesture: HumanoidGesture
+): SkeletalAnimState {
+  if (isJumping) return 'jump';
+  if (gesture === 'sit') return 'sit';
+  if (isMoving) {
+    if (isSprinting || movementSpeed >= 4.2) return 'sprint';
+    if (gesture === 'jog' || movementSpeed >= 2.2) return 'run';
+    return 'walk';
+  }
+  if (gesture === 'wave') return 'wave';
+  if (gesture === 'talk') return 'talk';
+  if (gesture === 'cheer') return 'cheer';
+  if (gesture === 'work') return 'work';
+  if (gesture === 'dance') return 'dance';
+  if (gesture === 'carry') return 'carry';
+  if (gesture === 'walk') return 'walk';
+  if (gesture === 'jog') return 'run';
+  return 'idle';
+}
+
 // ---------------------------------------------------------------------------
-// 1. CURATED COLOR PALETTES
+// 1. CURATED ANATOMICALLY NATURAL COLOR PALETTES
 // ---------------------------------------------------------------------------
 export const SKIN_TONES = {
   fair: 0xfce4d6,
@@ -137,19 +192,19 @@ class ProceduralTextureCache {
       ctx.fillStyle = `#${key}`;
       ctx.fillRect(0, 0, 128, 128);
 
-      // Subtle warm organic micro-tonal variation (simulates soft dermal scatter)
       const r = Math.round(color.r * 255);
       const g = Math.round(color.g * 255);
       const b = Math.round(color.b * 255);
 
-      for (let i = 0; i < 600; i++) {
+      // Subtle warm organic micro-tonal variation (simulates soft dermal scatter)
+      for (let i = 0; i < 700; i++) {
         const x = Math.random() * 128;
         const y = Math.random() * 128;
-        const delta = (Math.random() - 0.5) * 12;
+        const delta = (Math.random() - 0.5) * 10;
         ctx.fillStyle = `rgba(${Math.min(255, Math.max(0, r + delta + 4))}, ${Math.min(
           255,
           Math.max(0, g + delta)
-        )}, ${Math.min(255, Math.max(0, b + delta))}, 0.15)`;
+        )}, ${Math.min(255, Math.max(0, b + delta))}, 0.16)`;
         ctx.fillRect(x, y, 2, 2);
       }
     }
@@ -162,7 +217,7 @@ class ProceduralTextureCache {
     return tex;
   }
 
-  // Realistic fabric textures (denim twill, cotton weave, suiting wool)
+  // Realistic fabric textures (denim twill, cotton weave, suiting wool, natural linen)
   public static getFabricTexture(type: 'denim' | 'cotton' | 'wool' | 'linen', baseHex: string): THREE.CanvasTexture {
     const key = `${type}_${baseHex}`;
     if (this.fabricTextures.has(key)) return this.fabricTextures.get(key)!;
@@ -193,7 +248,7 @@ class ProceduralTextureCache {
         }
       } else if (type === 'wool') {
         // Fine worsted suit crosshatch
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.18)';
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.16)';
         ctx.lineWidth = 1;
         for (let i = 0; i < 128; i += 3) {
           ctx.beginPath();
@@ -203,8 +258,15 @@ class ProceduralTextureCache {
           ctx.lineTo(128, i);
           ctx.stroke();
         }
+      } else if (type === 'linen') {
+        // Natural organic textured slub grain
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+        for (let i = 0; i < 140; i++) {
+          const ly = Math.random() * 128;
+          ctx.fillRect(Math.random() * 128, ly, 6 + Math.random() * 8, 1.5);
+        }
       } else {
-        // Natural cotton/linen woven grain
+        // Natural cotton woven grain
         for (let x = 0; x < 128; x += 2) {
           for (let y = 0; y < 128; y += 2) {
             if ((x + y) % 4 === 0) {
@@ -241,7 +303,7 @@ class ProceduralTextureCache {
     const ctx = canvas.getContext('2d');
 
     if (ctx) {
-      // Sclera (White)
+      // Natural soft sclera (gentle ivory white, not harsh clinical neon)
       ctx.fillStyle = '#f8fafc';
       ctx.fillRect(0, 0, 128, 128);
 
@@ -265,25 +327,25 @@ class ProceduralTextureCache {
       ctx.fill();
 
       // Radial Iris Fibers
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.30)';
       ctx.lineWidth = 1;
-      for (let a = 0; a < Math.PI * 2; a += Math.PI / 18) {
+      for (let a = 0; a < Math.PI * 2; a += Math.PI / 20) {
         ctx.beginPath();
         ctx.moveTo(cx + Math.cos(a) * 16, cy + Math.sin(a) * 16);
         ctx.lineTo(cx + Math.cos(a) * (r - 4), cy + Math.sin(a) * (r - 4));
         ctx.stroke();
       }
 
-      // Pupil (Dark center)
+      // Pupil (Deep black center)
       ctx.beginPath();
       ctx.arc(cx, cy, 15, 0, Math.PI * 2);
       ctx.fillStyle = '#020617';
       ctx.fill();
 
-      // Corneal light reflection
+      // Corneal specular reflection glint
       ctx.beginPath();
       ctx.arc(cx - 8, cy - 8, 4, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.90)';
       ctx.fill();
     }
 
@@ -303,13 +365,17 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
   const isFemale = gender === 'female';
   const castShadow = options.castShadow !== false;
 
-  // Adult height: ~1.75m. Child: ~1.18m
-  const scale = options.heightScale || (isChild ? 0.68 : 1.0);
+  // Adult height: ~1.75m male, ~1.65m female, ~1.18m child
+  const scale = options.heightScale || (isChild ? 0.68 : isFemale ? 0.95 : 1.0);
 
   const root = new THREE.Group();
   root.name = 'HumanoidRoot';
 
-  // 1. Resolve Palette
+  const fallbackGroup = new THREE.Group();
+  fallbackGroup.name = 'ProceduralFallbackRig';
+  root.add(fallbackGroup);
+
+  // 1. Resolve Color Palette
   const skinColor = new THREE.Color(options.skinTone ?? SKIN_TONES.warmBeige);
   const hairColor = new THREE.Color(options.hairColor ?? HAIR_COLORS.darkBrown);
   const eyeColor = new THREE.Color(options.eyeColor ?? EYE_COLORS.brown);
@@ -329,9 +395,17 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
     pantsColor = new THREE.Color(0x1e293b); // Dark denim
     shoesColor = new THREE.Color(0x271c19); // Chelsea boots
   } else if (outfit === 'traditional' || outfit === 'rural_villager') {
-    shirtColor = new THREE.Color(0xd97706); // Natural linen tunic
+    shirtColor = new THREE.Color(options.primaryColor ?? 0xd97706); // Natural linen tunic
     pantsColor = new THREE.Color(0x57534e);
     shoesColor = new THREE.Color(0x44403c);
+  } else if (outfit === 'builder') {
+    shirtColor = new THREE.Color(0xea580c); // High-vis workwear
+    pantsColor = new THREE.Color(0x334155);
+    shoesColor = new THREE.Color(0x78350f); // Work boots
+  } else if (outfit === 'explorer') {
+    shirtColor = new THREE.Color(0x4d7c0f); // Safari / olive utility vest
+    pantsColor = new THREE.Color(0x44403c);
+    shoesColor = new THREE.Color(0x292524); // Rugged trail boots
   }
 
   // 2. High-Fidelity Materials with PBR Properties
@@ -339,17 +413,18 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
   const skinMat = new THREE.MeshStandardMaterial({
     map: skinTex,
     color: skinColor,
-    roughness: 0.58, // Organic skin matte roughness (no shiny plastic)
+    roughness: 0.58, // Organic human skin matte roughness (no synthetic plastic shine)
     metalness: 0.0,
   });
 
   const hairMat = new THREE.MeshStandardMaterial({
     color: hairColor,
-    roughness: 0.42,
-    metalness: 0.12,
+    roughness: 0.40,
+    metalness: 0.10,
   });
 
-  const fabricType = outfit === 'formal_blazer' ? 'wool' : outfit === 'traditional' ? 'linen' : 'cotton';
+  const fabricType =
+    outfit === 'formal_blazer' ? 'wool' : outfit === 'traditional' || outfit === 'rural_villager' ? 'linen' : 'cotton';
   const shirtTex = ProceduralTextureCache.getFabricTexture(fabricType, shirtColor.getHexString());
   const shirtMat = new THREE.MeshStandardMaterial({
     map: shirtTex,
@@ -368,58 +443,57 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
 
   const shoesMat = new THREE.MeshStandardMaterial({
     color: shoesColor,
-    roughness: 0.45,
+    roughness: 0.44,
     metalness: 0.08,
   });
 
   const soleMat = new THREE.MeshStandardMaterial({
     color: 0xf1f5f9,
-    roughness: 0.35,
+    roughness: 0.38,
   });
 
   const eyeTex = ProceduralTextureCache.getEyeTexture(eyeColor);
   const eyeMat = new THREE.MeshStandardMaterial({
     map: eyeTex,
-    roughness: 0.1,
+    roughness: 0.12,
     metalness: 0.0,
   });
 
   const browMat = new THREE.MeshStandardMaterial({
-    color: hairColor.clone().multiplyScalar(0.75),
+    color: hairColor.clone().multiplyScalar(0.72),
     roughness: 0.8,
   });
 
   const lipsMat = new THREE.MeshStandardMaterial({
-    color: skinColor.clone().lerp(new THREE.Color(0xa21caf), 0.22),
-    roughness: 0.45,
+    color: skinColor.clone().lerp(new THREE.Color(0xa21caf), 0.20),
+    roughness: 0.48,
   });
 
-  // Anatomical Dimensions
+  // Anatomical Dimensions based on Human Biometrics (8-Heads Tall Rule)
   const shoulderSpan = isChild ? 0.28 : isFemale ? 0.36 : 0.44;
   const chestDepth = isChild ? 0.18 : isFemale ? 0.22 : 0.24;
   const waistWidth = isChild ? 0.22 : isFemale ? 0.24 : 0.28;
-  const hipWidth = isChild ? 0.24 : isFemale ? 0.32 : 0.29;
+  const hipWidth = isChild ? 0.24 : isFemale ? 0.33 : 0.30;
   const legHeight = isChild ? 0.52 : 0.86;
   const torsoHeight = isChild ? 0.38 : 0.54;
-  const headRadius = isChild ? 0.11 : 0.105;
+  const headRadius = isChild ? 0.11 : 0.104;
 
   const hipElevation = legHeight + 0.08;
 
   // ---------------------------------------------------------------------------
-  // 4. PELVIS & LOWER TRUNK (Root pivot)
+  // 4. PELVIS & LOWER TRUNK (Root Hip Pivot)
   // ---------------------------------------------------------------------------
   const pelvis = new THREE.Group();
   pelvis.name = 'Pelvis';
   pelvis.position.y = hipElevation;
 
-  const pelvisMesh = new THREE.Mesh(
-    new THREE.CylinderGeometry(waistWidth * 0.48, hipWidth * 0.5, 0.15, 14),
-    pantsMat
-  );
-  pelvisMesh.scale.set(1, 1, chestDepth / (waistWidth * 0.48));
+  const pelvisGeo = new THREE.CylinderGeometry(waistWidth * 0.48, hipWidth * 0.50, 0.15, 16);
+  pelvisGeo.scale(1, 1, chestDepth / (waistWidth * 0.48));
+  const pelvisMesh = new THREE.Mesh(pelvisGeo, pantsMat);
   pelvisMesh.castShadow = castShadow;
+  pelvisMesh.receiveShadow = true;
   pelvis.add(pelvisMesh);
-  root.add(pelvis);
+  fallbackGroup.add(pelvis);
 
   // ---------------------------------------------------------------------------
   // 5. TORSO & SPINE (Hierarchical Group for Spine Flexion & Breathing)
@@ -427,35 +501,35 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
   const torsoGroup = new THREE.Group();
   torsoGroup.name = 'TorsoGroup';
   torsoGroup.position.y = hipElevation + 0.07;
-  root.add(torsoGroup);
+  fallbackGroup.add(torsoGroup);
 
   // Waist & Belt
   const waistMesh = new THREE.Mesh(
-    new THREE.CylinderGeometry(waistWidth * 0.5, waistWidth * 0.48, 0.12, 14),
+    new THREE.CylinderGeometry(waistWidth * 0.50, waistWidth * 0.48, 0.12, 16),
     pantsMat
   );
   waistMesh.position.y = 0.06;
-  waistMesh.scale.set(1, 1, 0.85);
+  waistMesh.scale.set(1, 1, 0.86);
   waistMesh.castShadow = castShadow;
   torsoGroup.add(waistMesh);
 
-  // Belt with subtle metallic buckle
+  // Belt with metallic buckle
   const beltMesh = new THREE.Mesh(
-    new THREE.CylinderGeometry(waistWidth * 0.51, waistWidth * 0.51, 0.04, 14),
+    new THREE.CylinderGeometry(waistWidth * 0.51, waistWidth * 0.51, 0.04, 16),
     new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.6 })
   );
   beltMesh.position.y = 0.03;
-  beltMesh.scale.set(1, 1, 0.86);
+  beltMesh.scale.set(1, 1, 0.87);
   torsoGroup.add(beltMesh);
 
   const buckle = new THREE.Mesh(
-    new THREE.BoxGeometry(0.065, 0.045, 0.02),
-    new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.8, roughness: 0.25 })
+    new THREE.BoxGeometry(0.065, 0.042, 0.02),
+    new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.82, roughness: 0.25 })
   );
-  buckle.position.set(0, 0.03, (waistWidth * 0.51 * 0.86) + 0.005);
+  buckle.position.set(0, 0.03, (waistWidth * 0.51 * 0.87) + 0.005);
   torsoGroup.add(buckle);
 
-  // Chest / Ribcage (Anatomical taper: broader shoulders, sculpted chest)
+  // Chest / Ribcage (Anatomical taper: broad shoulders, pectorals)
   const chestGeo = new THREE.CylinderGeometry(shoulderSpan * 0.48, waistWidth * 0.48, torsoHeight * 0.72, 16);
   chestGeo.scale(1, 1, (chestDepth * 1.1) / (shoulderSpan * 0.48));
   const chestMesh = new THREE.Mesh(chestGeo, shirtMat);
@@ -464,17 +538,17 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
   chestMesh.receiveShadow = true;
   torsoGroup.add(chestMesh);
 
-  // Upper Clavicle Ridge & Neck Base
+  // Clavicle Ridge (Collarbones)
   const clavicleMesh = new THREE.Mesh(
-    new THREE.CylinderGeometry(shoulderSpan * 0.38, shoulderSpan * 0.46, 0.08, 14),
+    new THREE.CylinderGeometry(shoulderSpan * 0.38, shoulderSpan * 0.46, 0.08, 16),
     shirtMat
   );
   clavicleMesh.position.y = 0.12 + torsoHeight * 0.72 + 0.02;
   clavicleMesh.scale.set(1, 1, 0.75);
   torsoGroup.add(clavicleMesh);
 
-  // Anatomical Neck (Contoured cylinder with slight forward pitch)
-  const neckGeo = new THREE.CylinderGeometry(0.062, 0.072, 0.13, 12);
+  // Anatomical Neck (Contoured cylinder with slight natural forward tilt)
+  const neckGeo = new THREE.CylinderGeometry(0.062, 0.072, 0.13, 14);
   const neckMesh = new THREE.Mesh(neckGeo, skinMat);
   neckMesh.position.set(0, clavicleMesh.position.y + 0.07, 0.015);
   neckMesh.rotation.x = 0.08;
@@ -489,21 +563,32 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
   headGroup.position.set(0, neckMesh.position.y + 0.13, 0.025);
   torsoGroup.add(headGroup);
 
-  // Cranium: Anatomical Human Head Profile
-  const craniumGeo = new THREE.SphereGeometry(headRadius, 18, 16);
-  craniumGeo.scale(0.88, 1.12, 0.98); // Taller than wide, natural oval depth
+  // Cranium: Anatomical Human Head Oval with Occipital Bulge & Temples
+  const craniumGeo = new THREE.SphereGeometry(headRadius, 20, 18);
+  craniumGeo.scale(0.88, 1.12, 0.98);
   const headMesh = new THREE.Mesh(craniumGeo, skinMat);
   headMesh.castShadow = castShadow;
   headGroup.add(headMesh);
 
   // Sculpted Jawline & Chin
-  const jawGeo = new THREE.CylinderGeometry(headRadius * 0.42, headRadius * 0.28, headRadius * 0.52, 10);
+  const jawGeo = new THREE.CylinderGeometry(headRadius * 0.42, headRadius * 0.28, headRadius * 0.52, 12);
   const jawMesh = new THREE.Mesh(jawGeo, skinMat);
   jawMesh.position.set(0, -headRadius * 0.62, headRadius * 0.42);
   jawMesh.rotation.x = 0.32;
   headGroup.add(jawMesh);
 
-  // Sculpted Nose Bridge & Nostril Wings
+  // Cheekbones (Zygomatic Arches)
+  [-1, 1].forEach((side) => {
+    const cheek = new THREE.Mesh(
+      new THREE.SphereGeometry(0.028, 8, 8),
+      skinMat
+    );
+    cheek.scale.set(1.1, 0.8, 0.6);
+    cheek.position.set(side * (headRadius * 0.68), -0.015, headRadius * 0.62);
+    headGroup.add(cheek);
+  });
+
+  // Sculpted Nose: Bridge, Cartilage Dorsum & Nostril Wings
   const noseBridge = new THREE.Mesh(
     new THREE.CylinderGeometry(0.015, 0.022, 0.065, 8),
     skinMat
@@ -519,7 +604,17 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
   noseTip.position.set(0, -0.038, headRadius * 0.98);
   headGroup.add(noseTip);
 
-  // Left & Right Anatomical Eyes (recessed with eyelids, limbal ring & iris)
+  // Nostril Wings
+  [-1, 1].forEach((side) => {
+    const wing = new THREE.Mesh(
+      new THREE.SphereGeometry(0.010, 6, 6),
+      skinMat
+    );
+    wing.position.set(side * 0.018, -0.040, headRadius * 0.94);
+    headGroup.add(wing);
+  });
+
+  // Left & Right Anatomical Eyes (Recessed orbit, sclera, limbal ring, pupil, eyelids)
   let leftEyeMesh: THREE.Mesh | undefined;
   let rightEyeMesh: THREE.Mesh | undefined;
 
@@ -527,9 +622,9 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
     const eyeSocket = new THREE.Group();
     eyeSocket.position.set(side * 0.046, 0.018, headRadius * 0.86);
 
-    // Eye sphere with custom iris texture
+    // Eye sphere with iris texture
     const eyeGeo = new THREE.SphereGeometry(0.021, 12, 12);
-    eyeGeo.rotateY(Math.PI / 2); // Orient texture forward
+    eyeGeo.rotateY(Math.PI / 2);
     const eye = new THREE.Mesh(eyeGeo, eyeMat);
     eyeSocket.add(eye);
     if (side < 0) leftEyeMesh = eye;
@@ -537,7 +632,7 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
 
     // Upper Eyelid Crease
     const upperLid = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.023, 0.023, 0.008, 10, 1, false, 0, Math.PI),
+      new THREE.CylinderGeometry(0.023, 0.023, 0.008, 12, 1, false, 0, Math.PI),
       skinMat
     );
     upperLid.rotation.z = Math.PI / 2;
@@ -582,64 +677,62 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
   headGroup.add(lowerLip);
 
   // ---------------------------------------------------------------------------
-  // 7. VOLUMETRIC LAYERED HAIRSTYLE (Realistic locks with depth & texture)
+  // 7. VOLUMETRIC MULTI-PART LAYERED HAIRSTYLE
   // ---------------------------------------------------------------------------
   const hairStyle = options.hairStyle || (isFemale ? 'long_flowing' : 'short_crop');
 
   if (hairStyle === 'short_crop') {
-    // Textured Modern Fade / Crop
+    // Textured Modern Crop / Fade
     const scalpCap = new THREE.Mesh(
-      new THREE.SphereGeometry(headRadius * 1.03, 16, 14, 0, Math.PI * 2, 0, Math.PI * 0.58),
+      new THREE.SphereGeometry(headRadius * 1.03, 18, 16, 0, Math.PI * 2, 0, Math.PI * 0.58),
       hairMat
     );
     scalpCap.position.y = 0.01;
     headGroup.add(scalpCap);
 
-    // Overlapping textured hair locks on crown
-    for (let i = 0; i < 5; i++) {
+    // Overlapping textured crown locks
+    for (let i = 0; i < 7; i++) {
       const lock = new THREE.Mesh(
         new THREE.CylinderGeometry(0.022, 0.012, 0.08, 6),
         hairMat
       );
-      lock.position.set((i - 2) * 0.022, headRadius * 0.82, headRadius * 0.42);
-      lock.rotation.x = -0.35 + Math.random() * 0.1;
+      lock.position.set((i - 3) * 0.018, headRadius * 0.84, headRadius * 0.40);
+      lock.rotation.x = -0.35 + (i % 2) * 0.08;
       headGroup.add(lock);
     }
   } else if (hairStyle === 'pompadour') {
-    // Classic Modern Quiff / Pompadour with swooping side locks
+    // Classic Modern Quiff / Pompadour
     const scalpCap = new THREE.Mesh(
-      new THREE.SphereGeometry(headRadius * 1.03, 16, 14, 0, Math.PI * 2, 0, Math.PI * 0.62),
+      new THREE.SphereGeometry(headRadius * 1.03, 18, 16, 0, Math.PI * 2, 0, Math.PI * 0.62),
       hairMat
     );
     headGroup.add(scalpCap);
 
     const quiffCrown = new THREE.Mesh(
-      new THREE.CylinderGeometry(headRadius * 0.55, headRadius * 0.65, 0.14, 10),
+      new THREE.CylinderGeometry(headRadius * 0.55, headRadius * 0.65, 0.14, 12),
       hairMat
     );
     quiffCrown.position.set(0, headRadius * 0.94, headRadius * 0.32);
     quiffCrown.rotation.x = -0.35;
     headGroup.add(quiffCrown);
   } else if (hairStyle === 'long_flowing') {
-    // Shoulder-length layered feminine tresses
+    // Layered flowing tresses draping over shoulders
     const scalpCap = new THREE.Mesh(
-      new THREE.SphereGeometry(headRadius * 1.03, 16, 14),
+      new THREE.SphereGeometry(headRadius * 1.03, 18, 16),
       hairMat
     );
     headGroup.add(scalpCap);
 
-    // Left and right flowing tresses draping over shoulders
     [-1, 1].forEach((side) => {
       const tress = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.038, 0.018, 0.36, 8),
+        new THREE.CylinderGeometry(0.038, 0.018, 0.36, 10),
         hairMat
       );
       tress.position.set(side * (headRadius * 0.82), -0.14, 0.02);
-      tress.rotation.z = side * -0.1;
+      tress.rotation.z = side * -0.10;
       headGroup.add(tress);
     });
 
-    // Back cascade
     const backTress = new THREE.Mesh(
       new THREE.BoxGeometry(headRadius * 1.25, 0.34, 0.08),
       hairMat
@@ -647,21 +740,37 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
     backTress.position.set(0, -0.15, -headRadius * 0.75);
     headGroup.add(backTress);
   } else if (hairStyle === 'bun') {
-    // High chic topknot bun
+    // Elegant ballerina bun
     const scalpCap = new THREE.Mesh(
-      new THREE.SphereGeometry(headRadius * 1.02, 16, 14, 0, Math.PI * 2, 0, Math.PI * 0.65),
+      new THREE.SphereGeometry(headRadius * 1.02, 18, 16, 0, Math.PI * 2, 0, Math.PI * 0.65),
       hairMat
     );
     headGroup.add(scalpCap);
 
     const bun = new THREE.Mesh(
-      new THREE.SphereGeometry(headRadius * 0.42, 12, 12),
+      new THREE.SphereGeometry(headRadius * 0.44, 12, 12),
       hairMat
     );
     bun.position.set(0, headRadius * 1.02, -0.04);
     headGroup.add(bun);
+  } else if (hairStyle === 'braided') {
+    // Textured French braid
+    const scalpCap = new THREE.Mesh(
+      new THREE.SphereGeometry(headRadius * 1.02, 18, 16),
+      hairMat
+    );
+    headGroup.add(scalpCap);
+
+    for (let i = 0; i < 5; i++) {
+      const braidSeg = new THREE.Mesh(
+        new THREE.SphereGeometry(0.038 - i * 0.004, 8, 8),
+        hairMat
+      );
+      braidSeg.position.set(0, -0.06 - i * 0.06, -headRadius * 0.82);
+      headGroup.add(braidSeg);
+    }
   } else if (hairStyle === 'beanie') {
-    // Urban knit cuff beanie
+    // Ribbed knit beanie
     const beanie = new THREE.Mesh(
       new THREE.CylinderGeometry(headRadius * 1.08, headRadius * 1.14, 0.16, 16),
       new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.8 })
@@ -670,22 +779,43 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
     headGroup.add(beanie);
   } else if (hairStyle === 'explorer_hat') {
     const brim = new THREE.Mesh(
-      new THREE.CylinderGeometry(headRadius * 1.9, headRadius * 1.9, 0.025, 16),
+      new THREE.CylinderGeometry(headRadius * 1.9, headRadius * 1.9, 0.025, 18),
       new THREE.MeshStandardMaterial({ color: 0x57534e, roughness: 0.8 })
     );
     brim.position.y = headRadius * 0.65;
     headGroup.add(brim);
 
     const crown = new THREE.Mesh(
-      new THREE.CylinderGeometry(headRadius * 0.95, headRadius * 1.05, 0.12, 16),
+      new THREE.CylinderGeometry(headRadius * 0.95, headRadius * 1.05, 0.12, 18),
       new THREE.MeshStandardMaterial({ color: 0x44403c, roughness: 0.8 })
     );
     crown.position.y = headRadius * 0.73;
     headGroup.add(crown);
+  } else if (hairStyle === 'builder_helmet') {
+    const helmet = new THREE.Mesh(
+      new THREE.SphereGeometry(headRadius * 1.12, 16, 14, 0, Math.PI * 2, 0, Math.PI * 0.55),
+      new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.35, metalness: 0.2 })
+    );
+    helmet.position.y = headRadius * 0.45;
+    headGroup.add(helmet);
+  } else if (hairStyle === 'cyber_visor') {
+    const visor = new THREE.Mesh(
+      new THREE.CylinderGeometry(headRadius * 0.96, headRadius * 0.96, 0.045, 16, 1, true, 0, Math.PI),
+      new THREE.MeshStandardMaterial({
+        color: 0x06b6d4,
+        roughness: 0.1,
+        metalness: 0.85,
+        transparent: true,
+        opacity: 0.75,
+      })
+    );
+    visor.rotation.y = Math.PI / 2;
+    visor.position.set(0, 0.02, headRadius * 0.88);
+    headGroup.add(visor);
   }
 
   // ---------------------------------------------------------------------------
-  // 8. ARTICULATED UPPER LIMBS (Shoulders, Biceps, Elbows, Forearms, Hands)
+  // 8. ARTICULATED UPPER LIMBS & HANDS WITH INDIVIDUAL FINGERS
   // ---------------------------------------------------------------------------
   const armLen = isChild ? 0.44 : 0.64;
   const upperArmLen = armLen * 0.52;
@@ -699,7 +829,7 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
     shoulderGroup.name = side < 0 ? 'LeftShoulder' : 'RightShoulder';
     shoulderGroup.position.set(side * (shoulderSpan * 0.52), clavicleMesh.position.y - 0.03, 0);
 
-    // Anatomical Deltoid Cap (Smooth shoulder transition)
+    // Anatomical Deltoid Cap
     const deltoid = new THREE.Mesh(
       new THREE.SphereGeometry(0.062, 10, 10),
       shirtMat
@@ -707,14 +837,14 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
     deltoid.scale.set(1.1, 1.25, 1.0);
     shoulderGroup.add(deltoid);
 
-    // Upper Arm (Bicep/Tricep taper)
-    const upperArmGeo = new THREE.CylinderGeometry(0.048, 0.042, upperArmLen, 10);
+    // Upper Arm (Bicep / Tricep taper)
+    const upperArmGeo = new THREE.CylinderGeometry(0.048, 0.042, upperArmLen, 12);
     upperArmGeo.translate(0, -upperArmLen / 2, 0);
     const upperArmMesh = new THREE.Mesh(upperArmGeo, shirtMat);
     upperArmMesh.castShadow = castShadow;
     shoulderGroup.add(upperArmMesh);
 
-    // Elbow Pivot Joint
+    // Elbow Joint
     const forearmGroup = new THREE.Group();
     forearmGroup.name = side < 0 ? 'LeftElbow' : 'RightElbow';
     forearmGroup.position.set(0, -upperArmLen, 0);
@@ -727,27 +857,48 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
     forearmGroup.add(elbowMesh);
 
     // Forearm (Brachioradialis taper to wrist)
-    const forearmGeo = new THREE.CylinderGeometry(0.040, 0.032, forearmLen, 10);
+    const forearmGeo = new THREE.CylinderGeometry(0.040, 0.032, forearmLen, 12);
     forearmGeo.translate(0, -forearmLen / 2, 0);
     const forearmMesh = new THREE.Mesh(forearmGeo, skinMat);
     forearmMesh.castShadow = castShadow;
     forearmGroup.add(forearmMesh);
 
-    // Hand with palm and thumb
+    // Hand with palm, thumb, and 4 individual sculpted fingers
     const handGroup = new THREE.Group();
     handGroup.position.set(0, -forearmLen, 0);
     forearmGroup.add(handGroup);
 
-    const palmGeo = new THREE.BoxGeometry(0.036, 0.062, 0.024);
-    palmGeo.translate(0, -0.031, 0);
+    // Palm with thenar pad
+    const palmGeo = new THREE.BoxGeometry(0.042, 0.058, 0.024);
+    palmGeo.translate(0, -0.029, 0);
     const palm = new THREE.Mesh(palmGeo, skinMat);
     handGroup.add(palm);
 
-    const thumbGeo = new THREE.CylinderGeometry(0.010, 0.008, 0.028, 6);
-    const thumb = new THREE.Mesh(thumbGeo, skinMat);
-    thumb.position.set(side * 0.018, -0.02, 0.01);
-    thumb.rotation.z = side * -0.4;
-    handGroup.add(thumb);
+    // Articulated Thumb
+    const thumbGroup = new THREE.Group();
+    thumbGroup.position.set(side * 0.022, -0.018, 0.008);
+    thumbGroup.rotation.z = side * -0.42;
+    thumbGroup.rotation.y = 0.25;
+    const thumbGeo = new THREE.CylinderGeometry(0.009, 0.008, 0.032, 6);
+    thumbGeo.translate(0, -0.016, 0);
+    const thumbMesh = new THREE.Mesh(thumbGeo, skinMat);
+    thumbGroup.add(thumbMesh);
+    handGroup.add(thumbGroup);
+
+    // 4 Articulated Fingers (Index, Middle, Ring, Pinky) with natural slight curl
+    const fingerLengths = [0.038, 0.042, 0.039, 0.031]; // natural hand finger proportions
+    const fingerOffsetsX = [-0.014, -0.004, 0.005, 0.013];
+
+    for (let f = 0; f < 4; f++) {
+      const fl = fingerLengths[f];
+      const fingerGeo = new THREE.CylinderGeometry(0.0075, 0.0065, fl, 6);
+      fingerGeo.translate(0, -fl / 2, 0);
+      const finger = new THREE.Mesh(fingerGeo, skinMat);
+      finger.position.set(fingerOffsetsX[f], -0.056, 0.002);
+      // Gentle natural resting curl
+      finger.rotation.x = -0.12 - (f * 0.04);
+      handGroup.add(finger);
+    }
 
     torsoGroup.add(shoulderGroup);
     return { shoulderGroup, forearmGroup };
@@ -757,7 +908,7 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
   const rightArm = buildArm(1);
 
   // ---------------------------------------------------------------------------
-  // 9. ARTICULATED LOWER LIMBS (Hips, Thighs, Knees, Calves, Feet)
+  // 9. ARTICULATED LOWER LIMBS & FOOTWEAR (Thighs, Knees, Calves, Shoes)
   // ---------------------------------------------------------------------------
   const thighLen = legHeight * 0.52;
   const calfLen = legHeight * 0.48;
@@ -772,16 +923,17 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
 
     // Hip Joint
     const hipJoint = new THREE.Mesh(
-      new THREE.SphereGeometry(0.060, 8, 8),
+      new THREE.SphereGeometry(0.060, 10, 10),
       pantsMat
     );
     hipGroup.add(hipJoint);
 
     // Thigh (Quadricep curve)
-    const thighGeo = new THREE.CylinderGeometry(0.072, 0.058, thighLen, 12);
+    const thighGeo = new THREE.CylinderGeometry(0.072, 0.058, thighLen, 14);
     thighGeo.translate(0, -thighLen / 2, 0);
     const thighMesh = new THREE.Mesh(thighGeo, pantsMat);
     thighMesh.castShadow = castShadow;
+    thighMesh.receiveShadow = true;
     hipGroup.add(thighMesh);
 
     // Articulated Patella Knee Joint
@@ -791,19 +943,20 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
     hipGroup.add(kneeGroup);
 
     const patella = new THREE.Mesh(
-      new THREE.SphereGeometry(0.048, 8, 8),
+      new THREE.SphereGeometry(0.048, 10, 10),
       pantsMat
     );
     kneeGroup.add(patella);
 
-    // Calf (Gastrocnemius taper to ankle)
-    const calfGeo = new THREE.CylinderGeometry(0.054, 0.042, calfLen, 12);
+    // Calf (Gastrocnemius muscle taper into ankle)
+    const calfGeo = new THREE.CylinderGeometry(0.054, 0.042, calfLen, 14);
     calfGeo.translate(0, -calfLen / 2, 0);
     const calfMesh = new THREE.Mesh(calfGeo, pantsMat);
     calfMesh.castShadow = castShadow;
+    calfMesh.receiveShadow = true;
     kneeGroup.add(calfMesh);
 
-    // Modern Lifestyle Footwear
+    // Modern Footwear (Upper + Sole + Tread)
     const footGroup = new THREE.Group();
     footGroup.position.set(0, -calfLen, 0);
     kneeGroup.add(footGroup);
@@ -821,16 +974,107 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
     const sole = new THREE.Mesh(soleGeo, soleMat);
     footGroup.add(sole);
 
-    root.add(hipGroup);
+    fallbackGroup.add(hipGroup);
     return { hipGroup, kneeGroup };
   }
 
   const leftLeg = buildLeg(-1);
   const rightLeg = buildLeg(1);
 
-  // Apply root scaling
   if (scale !== 1.0) {
-    root.scale.set(scale, scale, scale);
+    fallbackGroup.scale.set(scale, scale, scale);
+  }
+
+  // ---------------------------------------------------------------------------
+  // 9b. GLB / GLTF / FBX PROFESSIONAL HUMAN CHARACTER LOADER BRIDGE
+  // ---------------------------------------------------------------------------
+  const resolvedRole: CharacterModelRole =
+    options.roleKey || (isFemale ? 'player_female' : 'player_male');
+  const strictAssetRequired =
+    options.strictAssetRequired ?? (resolvedRole === 'player_male' && typeof window !== 'undefined');
+
+  let glbInstance: GLBCharacterInstance | null = null;
+  let assetLoadState: 'loading' | 'loaded' | 'error' | 'fallback' =
+    strictAssetRequired ? 'loading' : 'fallback';
+  let lastLoadError: CharacterLoadError | null = null;
+  let isDisposed = false;
+  let fallbackRemoved = false;
+  const targetHeight = isChild ? 1.18 : options.heightScale ? 1.75 * options.heightScale : undefined;
+
+  if (strictAssetRequired) {
+    // Do not display the old procedural male mannequin silently while loading or if asset fails
+    fallbackGroup.visible = false;
+  }
+
+  const removeAndDisposeFallback = () => {
+    if (fallbackRemoved) return;
+    fallbackRemoved = true;
+    fallbackGroup.visible = false;
+    root.remove(fallbackGroup);
+    fallbackGroup.traverse((child) => {
+      const mesh = child as THREE.Mesh;
+      if (mesh.isMesh && mesh.geometry) {
+        mesh.geometry.dispose();
+      }
+    });
+  };
+
+  const tryAttachGLB = async (): Promise<void> => {
+    if (isDisposed) return;
+    if (strictAssetRequired) {
+      assetLoadState = 'loading';
+    }
+
+    const instance = await characterAssetManager.createInstance(resolvedRole, {
+      primaryColor: options.primaryColor,
+      hairColor: options.hairColor,
+      skinTone: options.skinTone,
+      targetHeight,
+      castShadow,
+      preserveOriginalMaterials: resolvedRole === 'player_male',
+    });
+
+    if (isDisposed) {
+      instance?.dispose();
+      return;
+    }
+
+    if (instance) {
+      if (glbInstance) {
+        root.remove(glbInstance.root);
+        glbInstance.dispose();
+      }
+      glbInstance = instance;
+      assetLoadState = 'loaded';
+      lastLoadError = null;
+      root.add(instance.root);
+      // Remove the old procedural character only after the new model loads successfully
+      removeAndDisposeFallback();
+    } else {
+      if (glbInstance) {
+        root.remove(glbInstance.root);
+        glbInstance.dispose();
+        glbInstance = null;
+      }
+      lastLoadError = characterAssetManager.getErrorForRole(resolvedRole);
+      if (strictAssetRequired) {
+        assetLoadState = 'error';
+        // Never fall back silently to the old mannequin if the supplied model fails
+        removeAndDisposeFallback();
+      } else {
+        assetLoadState = 'fallback';
+        fallbackGroup.visible = true;
+      }
+    }
+  };
+
+  let hotSwapPromise: Promise<void> | undefined;
+  let unsubModelUpdates: (() => void) | null = null;
+  if (typeof window !== 'undefined') {
+    hotSwapPromise = tryAttachGLB();
+    unsubModelUpdates = characterAssetManager.onModelsUpdated(() => {
+      void tryAttachGLB();
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -838,6 +1082,7 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
   // ---------------------------------------------------------------------------
   let idleTime = Math.random() * 10;
   let landingCompression = 0;
+  let fallbackLodAccumulator = 0;
 
   const updateAnimation = (
     walkTime: number,
@@ -846,9 +1091,42 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
     isJumping: boolean,
     verticalVelocity: number,
     dt: number,
-    movementSpeed: number = 2.0,
-    gesture: HumanoidGesture = 'none'
+    movementSpeed: number = 1.4,
+    gesture: HumanoidGesture = 'none',
+    cameraDistance: number = 10,
+    angularTurnRate: number = 0
   ) => {
+    // 1. If the GLB/FBX human rig is attached, drive its AnimationMixer with crossFadeTo blending
+    if (glbInstance) {
+      const skeletalState = mapToSkeletalAnimState(
+        isMoving,
+        isSprinting,
+        isJumping,
+        movementSpeed,
+        gesture
+      );
+      glbInstance.updateAnimation(skeletalState, dt, movementSpeed, cameraDistance, angularTurnRate);
+      return;
+    }
+
+    // Never animate hidden/removed procedural mannequin when strict external model is required
+    if (strictAssetRequired) {
+      return;
+    }
+
+    // 2. Fallback LOD throttling for far-away characters (mobile & desktop optimization)
+    if (cameraDistance > 110) {
+      return;
+    }
+    if (cameraDistance > 55) {
+      fallbackLodAccumulator += dt;
+      if (fallbackLodAccumulator < 0.045) return;
+      dt = fallbackLodAccumulator;
+      fallbackLodAccumulator = 0;
+    } else {
+      fallbackLodAccumulator = 0;
+    }
+
     idleTime += dt;
 
     if (isJumping) {
@@ -893,10 +1171,10 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
       torsoGroup.rotation.y = 0;
       torsoGroup.rotation.z = 0;
     } else if (isMoving) {
-      // Natural walking / running gait matching ground speed
-      const speedRatio = Math.max(0.5, Math.min(2.8, movementSpeed / 2.0));
-      const legAmplitude = Math.min(0.72, 0.44 * speedRatio);
-      const armAmplitude = Math.min(0.78, 0.48 * speedRatio);
+      // Natural walking (~1.4 m/s), running (~3.5 m/s), sprinting (~5.0 m/s) gait
+      const speedRatio = Math.max(0.4, Math.min(3.2, movementSpeed / 1.4));
+      const legAmplitude = Math.min(0.75, 0.40 * speedRatio);
+      const armAmplitude = Math.min(0.82, 0.44 * speedRatio);
 
       const legSwing = Math.sin(walkTime) * legAmplitude;
       const armSwing = Math.sin(walkTime) * armAmplitude;
@@ -905,8 +1183,8 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
       leftLeg.hipGroup.rotation.x = legSwing;
       rightLeg.hipGroup.rotation.x = -legSwing;
 
-      // Anatomical backward knee bend only
-      const kneeFlexMult = isSprinting ? 1.15 : 0.88;
+      // Anatomical backward knee bend only (no forward hyper-extension)
+      const kneeFlexMult = isSprinting ? 1.25 : movementSpeed > 2.5 ? 1.05 : 0.88;
       leftLeg.kneeGroup.rotation.x = Math.max(0, -legSwing) * kneeFlexMult;
       rightLeg.kneeGroup.rotation.x = Math.max(0, legSwing) * kneeFlexMult;
 
@@ -916,15 +1194,15 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
       leftArm.shoulderGroup.rotation.z = 0;
       rightArm.shoulderGroup.rotation.z = 0;
 
-      const elbowBend = -0.22 - Math.abs(armSwing) * (gesture === 'jog' ? 0.72 : 0.42);
+      const elbowBend = -0.22 - Math.abs(armSwing) * (gesture === 'jog' ? 0.72 : 0.44);
       leftArm.forearmGroup.rotation.x = elbowBend;
       rightArm.forearmGroup.rotation.x = elbowBend;
       leftArm.forearmGroup.rotation.z = 0;
       rightArm.forearmGroup.rotation.z = 0;
 
-      // Torso counter-rotation & subtle forward lean proportional to speed
+      // Torso counter-rotation & natural forward lean proportional to speed
       torsoGroup.rotation.y = -legSwing * 0.10;
-      torsoGroup.rotation.x = Math.min(0.18, 0.04 + (movementSpeed / 5.5) * 0.12);
+      torsoGroup.rotation.x = Math.min(0.20, 0.04 + (movementSpeed / 5.0) * 0.14);
       torsoGroup.rotation.z = 0;
 
       // Pelvic vertical displacement (double frequency bounce)
@@ -959,6 +1237,34 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
         torsoGroup.rotation.x += (0 - torsoGroup.rotation.x) * restLerp;
         torsoGroup.rotation.y += (0.05 - torsoGroup.rotation.y) * restLerp;
         torsoGroup.rotation.z = weightShift * 0.5;
+      } else if (gesture === 'talk') {
+        // Active conversational gestures with expressive hand and head movement
+        const talkCadence = Math.sin(idleTime * 3.2);
+        leftArm.shoulderGroup.rotation.x += (-0.35 + talkCadence * 0.12 - leftArm.shoulderGroup.rotation.x) * restLerp;
+        leftArm.shoulderGroup.rotation.z += (-0.20 - leftArm.shoulderGroup.rotation.z) * restLerp;
+        leftArm.forearmGroup.rotation.x += (-0.85 + Math.cos(idleTime * 3.2) * 0.20 - leftArm.forearmGroup.rotation.x) * restLerp;
+
+        rightArm.shoulderGroup.rotation.x += (-0.42 - talkCadence * 0.16 - rightArm.shoulderGroup.rotation.x) * restLerp;
+        rightArm.shoulderGroup.rotation.z += (0.24 - rightArm.shoulderGroup.rotation.z) * restLerp;
+        rightArm.forearmGroup.rotation.x += (-0.92 + talkCadence * 0.25 - rightArm.forearmGroup.rotation.x) * restLerp;
+
+        torsoGroup.rotation.x += (0.04 - torsoGroup.rotation.x) * restLerp;
+        torsoGroup.rotation.y += (Math.sin(idleTime * 1.8) * 0.08 - torsoGroup.rotation.y) * restLerp;
+        torsoGroup.rotation.z = weightShift * 0.3;
+        headGroup.rotation.y = Math.sin(idleTime * 2.5) * 0.09;
+        headGroup.rotation.x = Math.sin(idleTime * 3.0) * 0.04;
+      } else if (gesture === 'carry') {
+        // Holding an object with both hands forward
+        leftArm.shoulderGroup.rotation.x += (-0.52 - leftArm.shoulderGroup.rotation.x) * restLerp;
+        rightArm.shoulderGroup.rotation.x += (-0.52 - rightArm.shoulderGroup.rotation.x) * restLerp;
+        leftArm.shoulderGroup.rotation.z += (0.15 - leftArm.shoulderGroup.rotation.z) * restLerp;
+        rightArm.shoulderGroup.rotation.z += (-0.15 - rightArm.shoulderGroup.rotation.z) * restLerp;
+        leftArm.forearmGroup.rotation.x += (-0.90 - leftArm.forearmGroup.rotation.x) * restLerp;
+        rightArm.forearmGroup.rotation.x += (-0.90 - rightArm.forearmGroup.rotation.x) * restLerp;
+
+        torsoGroup.rotation.x += (0.04 - torsoGroup.rotation.x) * restLerp;
+        torsoGroup.rotation.y = 0;
+        torsoGroup.rotation.z = weightShift * 0.4;
       } else if (gesture === 'cheer') {
         // High celebratory cheer
         leftArm.shoulderGroup.rotation.x += (0.18 - leftArm.shoulderGroup.rotation.x) * restLerp;
@@ -1002,11 +1308,11 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
         leftArm.forearmGroup.rotation.x = -0.8;
         rightArm.forearmGroup.rotation.x = -0.8;
       } else {
-        // Standard Idle
+        // Standard Idle with breathing and relaxed arm position
         leftArm.shoulderGroup.rotation.x += (0 - leftArm.shoulderGroup.rotation.x) * restLerp;
         rightArm.shoulderGroup.rotation.x += (0 - rightArm.shoulderGroup.rotation.x) * restLerp;
-        leftArm.shoulderGroup.rotation.z += (0 - leftArm.shoulderGroup.rotation.z) * restLerp;
-        rightArm.shoulderGroup.rotation.z += (0 - rightArm.shoulderGroup.rotation.z) * restLerp;
+        leftArm.shoulderGroup.rotation.z += (0.04 - leftArm.shoulderGroup.rotation.z) * restLerp;
+        rightArm.shoulderGroup.rotation.z += (-0.04 - rightArm.shoulderGroup.rotation.z) * restLerp;
         leftArm.forearmGroup.rotation.x += (-0.14 - leftArm.forearmGroup.rotation.x) * restLerp;
         rightArm.forearmGroup.rotation.x += (-0.14 - rightArm.forearmGroup.rotation.x) * restLerp;
         leftArm.forearmGroup.rotation.z = 0;
@@ -1015,6 +1321,8 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
         torsoGroup.rotation.x += (0 - torsoGroup.rotation.x) * restLerp;
         torsoGroup.rotation.y += (0 - torsoGroup.rotation.y) * restLerp;
         torsoGroup.rotation.z = weightShift;
+        headGroup.rotation.y = 0;
+        headGroup.rotation.x = 0;
       }
 
       // Natural chest breathing scale
@@ -1031,6 +1339,14 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
   };
 
   const dispose = () => {
+    isDisposed = true;
+    unsubModelUpdates?.();
+    unsubModelUpdates = null;
+    if (glbInstance) {
+      root.remove(glbInstance.root);
+      glbInstance.dispose();
+      glbInstance = null;
+    }
     skinMat.dispose();
     hairMat.dispose();
     shirtMat.dispose();
@@ -1060,6 +1376,15 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
     rightHip: rightLeg.hipGroup,
     rightKneeGroup: rightLeg.kneeGroup,
     updateAnimation,
+    getRigMode: () => {
+      if (glbInstance) return glbInstance.format === 'fbx' ? 'fbx' : 'glb';
+      if (strictAssetRequired) return assetLoadState === 'loading' ? 'loading' : 'error';
+      return 'procedural_fallback';
+    },
+    getLoadedClipNames: () => (glbInstance ? [...glbInstance.availableClipNames] : []),
+    getLoadError: () => lastLoadError || characterAssetManager.getErrorForRole(resolvedRole),
+    getModelInspection: () => glbInstance?.inspection || characterAssetManager.getInspectionForRole(resolvedRole),
+    hotSwapPromise,
     dispose,
   };
 }

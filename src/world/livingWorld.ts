@@ -8,6 +8,7 @@ import {
   SKIN_TONES,
   HAIR_COLORS,
 } from './humanoidCharacterSystem';
+import { CharacterModelRole } from './glbCharacterLoader';
 import { NPCBehaviorManager } from './npcBehaviorSystem';
 import { EnvironmentalLifeManager } from './environmentalLifeSystem';
 
@@ -923,8 +924,18 @@ export class LivingWorldManager {
     const pedGroup = new THREE.Group();
     pedGroup.position.set(path[0].x, 0.08, path[0].z);
 
+    const pedGender = options.gender === 'female' ? 'female' : 'male';
+    const startX = path[0].x;
+    const districtRole: CharacterModelRole =
+      startX < -55
+        ? `npc_rural_${pedGender}`
+        : startX > 60
+        ? `npc_capital_${pedGender}`
+        : `npc_modern_${pedGender}`;
+
     const rig = createHumanoidCharacter({
       ...options,
+      roleKey: options.roleKey || districtRole,
       castShadow: !this.isSoftwareGl,
     });
     pedGroup.add(rig.root);
@@ -1106,9 +1117,9 @@ export class LivingWorldManager {
       this.updateVehicles(effectiveDt, elapsed);
     }
 
-    // 2. Update Pedestrians (with crosswalk stops & walk cycles)
+    // 2. Update Pedestrians (with crosswalk stops, walk cycles & distance LOD)
     if (this.isPedestriansActive) {
-      this.updatePedestrians(effectiveDt);
+      this.updatePedestrians(effectiveDt, cameraPos);
     }
 
     // 3. Update Intelligent Scheduled NPCs across all 3 districts
@@ -1379,13 +1390,14 @@ export class LivingWorldManager {
     }
   }
 
-  private updatePedestrians(dt: number) {
+  private updatePedestrians(dt: number, cameraPos: THREE.Vector3) {
     const pCount = this.pedestrians.length;
 
     for (let j = 0; j < pCount; j++) {
       const p = this.pedestrians[j];
       const path = p.path;
       const count = path.length;
+      const distToCamera = p.group.position.distanceTo(cameraPos);
 
       const pA = path[p.currentSegment];
       const nextIdx = (p.currentSegment + 1) % count;
@@ -1394,7 +1406,7 @@ export class LivingWorldManager {
       // Pedestrian pausing at crosswalk or viewpoint
       if (p.isPausing) {
         p.pauseTimer -= dt;
-        p.rig.updateAnimation(0, false, false, false, 0, dt);
+        p.rig.updateAnimation(0, false, false, false, 0, dt, 0, 'none', distToCamera);
 
         if (p.pauseTimer <= 0) {
           p.isPausing = false;
@@ -1414,7 +1426,7 @@ export class LivingWorldManager {
           if (distToVeh < 7.5 && veh.actualSpeed > 0.6) {
             p.isPausing = true;
             p.pauseTimer = 1.0;
-            p.rig.updateAnimation(0, false, false, false, 0, dt);
+            p.rig.updateAnimation(0, false, false, false, 0, dt, 0, 'none', distToCamera);
             break;
           }
         }
@@ -1452,9 +1464,9 @@ export class LivingWorldManager {
         );
         p.group.rotation.y += headingDiff * Math.min(1, dt * 8);
 
-        // Articulated Walk Cycle with realistic limb swing & physical stride cadence
+        // Articulated Walk Cycle with realistic limb swing, physical stride cadence & LOD
         p.walkCycle += dt * p.speed * 2.6;
-        p.rig.updateAnimation(p.walkCycle, true, false, false, 0, dt, p.speed);
+        p.rig.updateAnimation(p.walkCycle, true, false, false, 0, dt, p.speed, 'none', distToCamera);
       }
     }
   }
@@ -1476,6 +1488,10 @@ export class LivingWorldManager {
   }
 
   public dispose() {
+    for (const p of this.pedestrians) {
+      p.rig.dispose();
+    }
+    this.npcManager?.dispose();
     this.vehicles = [];
     this.pedestrians = [];
     this.streetPointLights = [];

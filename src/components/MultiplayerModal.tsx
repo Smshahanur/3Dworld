@@ -21,6 +21,8 @@ import {
   AVATAR_STYLES,
   AVATAR_SKIN_TONES,
   AVATAR_HAIRSTYLES,
+  AVATAR_HAIR_COLORS,
+  AVATAR_EYE_COLORS,
   MultiplayerUser,
 } from '../multiplayer/types';
 import { multiplayerService, getFriendlyAuthErrorMessage } from '../multiplayer/multiplayerService';
@@ -67,9 +69,9 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
   });
   const [selectedSkinTone, setSelectedSkinTone] = useState<string>(() => {
     try {
-      return localStorage.getItem('3dworld_avatar_skin_tone') || 'fair';
+      return localStorage.getItem('3dworld_avatar_skin_tone') || 'warmBeige';
     } catch {
-      return 'fair';
+      return 'warmBeige';
     }
   });
   const [selectedHairStyle, setSelectedHairStyle] = useState<string>(() => {
@@ -77,6 +79,20 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
       return localStorage.getItem('3dworld_avatar_hair_style') || 'short_crop';
     } catch {
       return 'short_crop';
+    }
+  });
+  const [selectedHairColor, setSelectedHairColor] = useState<string>(() => {
+    try {
+      return localStorage.getItem('3dworld_avatar_hair_color') || 'darkBrown';
+    } catch {
+      return 'darkBrown';
+    }
+  });
+  const [selectedEyeColor, setSelectedEyeColor] = useState<string>(() => {
+    try {
+      return localStorage.getItem('3dworld_avatar_eye_color') || 'brown';
+    } catch {
+      return 'brown';
     }
   });
 
@@ -100,7 +116,9 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
         selectedStyle,
         selectedGender,
         selectedSkinTone,
-        selectedHairStyle
+        selectedHairStyle,
+        selectedHairColor,
+        selectedEyeColor
       );
       onJoined(user);
       onClose();
@@ -125,9 +143,20 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
         selectedStyle,
         selectedGender,
         selectedSkinTone,
-        selectedHairStyle
+        selectedHairStyle,
+        selectedHairColor,
+        selectedEyeColor
       );
-      onJoined(user);
+      onJoined({
+        ...user,
+        avatarColor: selectedColor,
+        avatarType: selectedStyle,
+        gender: selectedGender,
+        skinTone: selectedSkinTone,
+        hairStyle: selectedHairStyle,
+        hairColor: selectedHairColor,
+        eyeColor: selectedEyeColor,
+      });
       onClose();
     } catch (err: unknown) {
       console.warn('[Multiplayer Sign In]', (err as Error)?.message || err);
@@ -151,7 +180,9 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
         selectedStyle,
         selectedGender,
         selectedSkinTone,
-        selectedHairStyle
+        selectedHairStyle,
+        selectedHairColor,
+        selectedEyeColor
       );
       onJoined(user);
       onClose();
@@ -382,6 +413,48 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
                     </button>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* Hair & Eye Color Swatches */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <span className="text-[11px] text-slate-400 block mb-1.5">Hair Color</span>
+                <div className="grid grid-cols-6 gap-1.5">
+                  {AVATAR_HAIR_COLORS.map((hc) => (
+                    <button
+                      key={hc.id}
+                      type="button"
+                      onClick={() => setSelectedHairColor(hc.id)}
+                      title={hc.label}
+                      className={`h-6 rounded-md flex items-center justify-center transition-all cursor-pointer border ${
+                        selectedHairColor === hc.id ? 'border-white ring-2 ring-cyan-400/60 scale-105' : 'border-white/15'
+                      }`}
+                      style={{ backgroundColor: hc.hex }}
+                    >
+                      {selectedHairColor === hc.id && <Check className="w-3 h-3 text-white drop-shadow" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <span className="text-[11px] text-slate-400 block mb-1.5">Eye Color</span>
+                <div className="grid grid-cols-6 gap-1.5">
+                  {AVATAR_EYE_COLORS.map((ec) => (
+                    <button
+                      key={ec.id}
+                      type="button"
+                      onClick={() => setSelectedEyeColor(ec.id)}
+                      title={ec.label}
+                      className={`h-6 rounded-md flex items-center justify-center transition-all cursor-pointer border ${
+                        selectedEyeColor === ec.id ? 'border-white ring-2 ring-cyan-400/60 scale-105' : 'border-white/15'
+                      }`}
+                      style={{ backgroundColor: ec.hex }}
+                    >
+                      {selectedEyeColor === ec.id && <Check className="w-3 h-3 text-white drop-shadow" />}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 

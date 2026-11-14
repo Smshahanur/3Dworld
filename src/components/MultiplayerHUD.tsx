@@ -10,6 +10,7 @@ import {
   Settings2,
   Gauge,
   RotateCcw,
+  UserCog,
 } from 'lucide-react';
 import {
   PlayerData,
@@ -31,6 +32,7 @@ interface MultiplayerHUDProps {
   speedMultiplier?: number;
   sensitivityMultiplier?: number;
   onUpdateMovementSettings?: (speedMult: number, sensMult: number) => void;
+  onOpenAvatarCustomizer?: () => void;
 }
 
 export const MultiplayerHUD: React.FC<MultiplayerHUDProps> = ({
@@ -47,6 +49,7 @@ export const MultiplayerHUD: React.FC<MultiplayerHUDProps> = ({
   speedMultiplier = 1.0,
   sensitivityMultiplier = 1.0,
   onUpdateMovementSettings,
+  onOpenAvatarCustomizer,
 }) => {
   const [showPlayerList, setShowPlayerList] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -72,11 +75,11 @@ export const MultiplayerHUD: React.FC<MultiplayerHUDProps> = ({
     onUpdateMovementSettings?.(1.0, 1.0);
   };
 
-  // Speed label classification
+  // Speed label classification aligned with human locomotion
   const getSpeedLabel = (spd: number) => {
-    if (spd < 0.2) return { text: 'Idle', color: 'text-slate-400' };
-    if (spd < 2.8) return { text: 'Walk', color: 'text-cyan-300' };
-    if (spd < 4.6) return { text: 'Run', color: 'text-emerald-400' };
+    if (spd < 0.15) return { text: 'Idle', color: 'text-slate-400' };
+    if (spd < 2.2) return { text: 'Walk', color: 'text-cyan-300' };
+    if (spd < 4.2) return { text: 'Run', color: 'text-emerald-400' };
     return { text: 'Sprint', color: 'text-amber-400' };
   };
 
@@ -105,14 +108,20 @@ export const MultiplayerHUD: React.FC<MultiplayerHUDProps> = ({
           )}
         </button>
 
-        {/* Local Player Badge */}
-        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-black/40 border border-white/5 text-xs text-slate-200">
+        {/* Local Player Badge (Click to customize Avatar) */}
+        <button
+          type="button"
+          onClick={onOpenAvatarCustomizer}
+          title="Customize human avatar, hairstyle, clothing & GLB model"
+          className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-black/40 hover:bg-cyan-950/50 border border-white/5 hover:border-cyan-400/40 text-xs text-slate-200 transition-colors cursor-pointer"
+        >
           <span
             className="w-3 h-3 rounded-full shrink-0 shadow-sm"
             style={{ backgroundColor: userColorHex }}
           />
           <span className="font-medium max-w-[110px] truncate">{user.displayName}</span>
-        </div>
+          {onOpenAvatarCustomizer && <UserCog className="w-3.5 h-3.5 text-cyan-400 shrink-0" />}
+        </button>
 
         {/* Real-time Movement Speedometer Badge */}
         <div
@@ -222,9 +231,9 @@ export const MultiplayerHUD: React.FC<MultiplayerHUDProps> = ({
               className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
             />
             <div className="flex justify-between text-[10px] text-slate-500">
-              <span>0.7x (1.4 m/s)</span>
-              <span className="text-slate-400">Default (2.0 m/s)</span>
-              <span>1.3x (2.6 m/s)</span>
+              <span>0.7x (1.0 m/s)</span>
+              <span className="text-slate-400">Baseline (1.4 m/s)</span>
+              <span>1.3x (1.8 m/s)</span>
             </div>
           </div>
 

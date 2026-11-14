@@ -127,8 +127,10 @@ class MultiplayerService {
         let savedColor: AvatarColor = 'cyan';
         let savedStyle: AvatarType = 'casual';
         let savedGender: GenderType = 'male';
-        let savedSkinTone: string = 'fair';
+        let savedSkinTone: string = 'warmBeige';
         let savedHairStyle: string = 'short_crop';
+        let savedHairColor: string = 'darkBrown';
+        let savedEyeColor: string = 'brown';
         try {
           const col = localStorage.getItem('3dworld_avatar_color') as AvatarColor;
           if (col) savedColor = col;
@@ -140,6 +142,10 @@ class MultiplayerService {
           if (sk) savedSkinTone = sk;
           const hr = localStorage.getItem('3dworld_avatar_hair_style');
           if (hr) savedHairStyle = hr;
+          const hc = localStorage.getItem('3dworld_avatar_hair_color');
+          if (hc) savedHairColor = hc;
+          const ec = localStorage.getItem('3dworld_avatar_eye_color');
+          if (ec) savedEyeColor = ec;
         } catch {}
 
         const displayName = user.displayName || (user.isAnonymous ? `Guest_${user.uid.slice(-4)}` : user.email?.split('@')[0] || 'Player');
@@ -154,6 +160,8 @@ class MultiplayerService {
           gender: savedGender,
           skinTone: savedSkinTone,
           hairStyle: savedHairStyle,
+          hairColor: savedHairColor,
+          eyeColor: savedEyeColor,
         };
       } else {
         this.currentUser = null;
@@ -167,8 +175,10 @@ class MultiplayerService {
     color: AvatarColor = 'cyan',
     style: AvatarType = 'casual',
     gender: GenderType = 'male',
-    skinTone: string = 'fair',
-    hairStyle: string = 'short_crop'
+    skinTone: string = 'warmBeige',
+    hairStyle: string = 'short_crop',
+    hairColor: string = 'darkBrown',
+    eyeColor: string = 'brown'
   ): Promise<MultiplayerUser> {
     this.connectionState = 'connecting';
     this.notifyState();
@@ -181,7 +191,7 @@ class MultiplayerService {
         await updateProfile(cred.user, { displayName: name });
       } catch {}
 
-      this.savePreferences(name, color, style, gender, skinTone, hairStyle);
+      this.savePreferences(name, color, style, gender, skinTone, hairStyle, hairColor, eyeColor);
 
       this.currentUser = {
         uid: cred.user.uid,
@@ -193,6 +203,8 @@ class MultiplayerService {
         gender,
         skinTone,
         hairStyle,
+        hairColor,
+        eyeColor,
       };
 
       this.connectionState = 'connected';
@@ -212,8 +224,10 @@ class MultiplayerService {
     color: AvatarColor = 'cyan',
     style: AvatarType = 'casual',
     gender: GenderType = 'male',
-    skinTone: string = 'fair',
-    hairStyle: string = 'short_crop'
+    skinTone: string = 'warmBeige',
+    hairStyle: string = 'short_crop',
+    hairColor: string = 'darkBrown',
+    eyeColor: string = 'brown'
   ): Promise<MultiplayerUser> {
     this.connectionState = 'connecting';
     this.notifyState();
@@ -226,7 +240,7 @@ class MultiplayerService {
         await updateProfile(cred.user, { displayName: name });
       } catch {}
 
-      this.savePreferences(name, color, style, gender, skinTone, hairStyle);
+      this.savePreferences(name, color, style, gender, skinTone, hairStyle, hairColor, eyeColor);
 
       this.currentUser = {
         uid: cred.user.uid,
@@ -238,6 +252,8 @@ class MultiplayerService {
         gender,
         skinTone,
         hairStyle,
+        hairColor,
+        eyeColor,
       };
 
       this.connectionState = 'connected';
@@ -259,8 +275,10 @@ class MultiplayerService {
       let savedColor: AvatarColor = 'cyan';
       let savedStyle: AvatarType = 'casual';
       let savedGender: GenderType = 'male';
-      let savedSkinTone: string = 'fair';
+      let savedSkinTone: string = 'warmBeige';
       let savedHairStyle: string = 'short_crop';
+      let savedHairColor: string = 'darkBrown';
+      let savedEyeColor: string = 'brown';
       try {
         const col = localStorage.getItem('3dworld_avatar_color') as AvatarColor;
         if (col) savedColor = col;
@@ -272,6 +290,10 @@ class MultiplayerService {
         if (sk) savedSkinTone = sk;
         const hr = localStorage.getItem('3dworld_avatar_hair_style');
         if (hr) savedHairStyle = hr;
+        const hc = localStorage.getItem('3dworld_avatar_hair_color');
+        if (hc) savedHairColor = hc;
+        const ec = localStorage.getItem('3dworld_avatar_eye_color');
+        if (ec) savedEyeColor = ec;
       } catch {}
 
       const name = cred.user.displayName || email.split('@')[0];
@@ -286,6 +308,8 @@ class MultiplayerService {
         gender: savedGender,
         skinTone: savedSkinTone,
         hairStyle: savedHairStyle,
+        hairColor: savedHairColor,
+        eyeColor: savedEyeColor,
       };
 
       this.connectionState = 'connected';
@@ -311,9 +335,12 @@ class MultiplayerService {
     color: AvatarColor,
     style: AvatarType,
     gender: GenderType = 'male',
-    skinTone: string = 'fair',
-    hairStyle: string = 'short_crop'
+    skinTone: string = 'warmBeige',
+    hairStyle: string = 'short_crop',
+    hairColor: string = 'darkBrown',
+    eyeColor: string = 'brown'
   ) {
+    this.savePreferences(displayName, color, style, gender, skinTone, hairStyle, hairColor, eyeColor);
     if (!this.currentUser) return;
     this.currentUser.displayName = displayName.trim() || this.currentUser.displayName;
     this.currentUser.avatarColor = color;
@@ -321,7 +348,8 @@ class MultiplayerService {
     this.currentUser.gender = gender;
     this.currentUser.skinTone = skinTone;
     this.currentUser.hairStyle = hairStyle;
-    this.savePreferences(displayName, color, style, gender, skinTone, hairStyle);
+    this.currentUser.hairColor = hairColor;
+    this.currentUser.eyeColor = eyeColor;
 
     if (auth.currentUser) {
       updateProfile(auth.currentUser, { displayName: this.currentUser.displayName }).catch(() => {});
@@ -339,8 +367,10 @@ class MultiplayerService {
     color: AvatarColor,
     style: AvatarType,
     gender: GenderType = 'male',
-    skinTone: string = 'fair',
-    hairStyle: string = 'short_crop'
+    skinTone: string = 'warmBeige',
+    hairStyle: string = 'short_crop',
+    hairColor: string = 'darkBrown',
+    eyeColor: string = 'brown'
   ) {
     try {
       localStorage.setItem('3dworld_player_name', name);
@@ -349,6 +379,8 @@ class MultiplayerService {
       localStorage.setItem('3dworld_avatar_gender', gender);
       localStorage.setItem('3dworld_avatar_skin_tone', skinTone);
       localStorage.setItem('3dworld_avatar_hair_style', hairStyle);
+      localStorage.setItem('3dworld_avatar_hair_color', hairColor);
+      localStorage.setItem('3dworld_avatar_eye_color', eyeColor);
     } catch {}
   }
 
@@ -586,6 +618,8 @@ class MultiplayerService {
         gender: this.currentUser.gender,
         skinTone: this.currentUser.skinTone,
         hairStyle: this.currentUser.hairStyle,
+        hairColor: this.currentUser.hairColor,
+        eyeColor: this.currentUser.eyeColor,
         position: [
           Math.round(position[0] * 100) / 100,
           Math.round(position[1] * 100) / 100,

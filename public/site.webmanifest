@@ -1,7 +1,7 @@
 {
-  "name": "3DWorld by Shahanur Mollah | Interactive 3D Virtual Universe",
+  "name": "3DWorld – Interactive Virtual Universe | Created by Shahanur Mollah",
   "short_name": "3DWorld",
-  "description": "Explore 3DWorld, an interactive 3D virtual universe created by Shahanur Mollah. Discover virtual villages, modern towns, realistic environments, vehicles and multiplayer exploration.",
+  "description": "Explore 3DWorld, an interactive 3D virtual universe featuring realistic villages, modern cities, vehicles, AI characters, exploration and multiplayer experiences.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#060913",

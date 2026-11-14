@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "basePath": "/models/characters/",
+  "availableModels": {},
+  "requiredModels": {
+    "player_male": {
+      "file": "Athletic_man.glb",
+      "description": "Supplied Athletic Man male player character (GLB primary, FBX auto-supported) with original skin, face, hair, clothing, and skeletal animations",
+      "targetHeightMeters": 1.78
+    },
+    "player_female": {
+      "file": "player_female.glb",
+      "description": "Realistic young adult female player character with PBR skin, hair, clothing, and humanoid skeleton",
+      "targetHeightMeters": 1.65
+    },
+    "npc_rural_male": {
+      "file": "npc_rural_male.glb",
+      "description": "Rural village male resident (casual workwear / farmer / traditional attire)",
+      "targetHeightMeters": 1.76
+    },
+    "npc_rural_female": {
+      "file": "npc_rural_female.glb",
+      "description": "Rural village female resident (orchard keeper / rural attire)",
+      "targetHeightMeters": 1.65
+    },
+    "npc_modern_male": {
+      "file": "npc_modern_male.glb",
+      "description": "Modern Village male resident (contemporary casual jacket / hoodie / jeans)",
+      "targetHeightMeters": 1.76
+    },
+    "npc_modern_female": {
+      "file": "npc_modern_female.glb",
+      "description": "Modern Village female resident (contemporary casual attire)",
+      "targetHeightMeters": 1.65
+    },
+    "npc_capital_male": {
+      "file": "npc_capital_male.glb",
+      "description": "Capital Town male resident (formal business suit / blazer & dress shoes)",
+      "targetHeightMeters": 1.78
+    },
+    "npc_capital_female": {
+      "file": "npc_capital_female.glb",
+      "description": "Capital Town female resident (formal business attire & tailored blazer)",
+      "targetHeightMeters": 1.66
+    }
+  },
+  "supportedAnimations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Sprint",
+    "Turn",
+    "TurnLeft",
+    "TurnRight",
+    "Talk",
+    "Sit",
+    "Stand",
+    "Wave",
+    "Cheer",
+    "Work",
+    "Dance",
+    "Carry",
+    "Jump"
+  ]
+}

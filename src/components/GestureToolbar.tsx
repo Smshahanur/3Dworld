@@ -1,5 +1,16 @@
 import React, { useState } from 'react';
-import { Hand, Smile, Sparkles, Music, ChevronUp, ChevronDown, UserCheck } from 'lucide-react';
+import {
+  Hand,
+  Smile,
+  Sparkles,
+  Music,
+  ChevronUp,
+  ChevronDown,
+  UserCheck,
+  MessageCircle,
+  Briefcase,
+  Hammer,
+} from 'lucide-react';
 import { HumanoidGesture } from '../world/humanoidCharacterSystem';
 import { playGestureSound, playNPCGreeting } from '../utils/audio';
 
@@ -28,6 +39,27 @@ export const GestureToolbar: React.FC<GestureToolbarProps> = ({
         playNPCGreeting();
         playGestureSound();
       },
+    },
+    {
+      id: 'talk',
+      label: 'Talk',
+      icon: <MessageCircle className="w-3.5 h-3.5" />,
+      sound: () => {
+        playNPCGreeting();
+        playGestureSound();
+      },
+    },
+    {
+      id: 'work',
+      label: 'Work',
+      icon: <Hammer className="w-3.5 h-3.5" />,
+      sound: () => playGestureSound(),
+    },
+    {
+      id: 'carry',
+      label: 'Carry',
+      icon: <Briefcase className="w-3.5 h-3.5" />,
+      sound: () => playGestureSound(),
     },
     {
       id: 'sit',

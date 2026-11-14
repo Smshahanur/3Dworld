@@ -24,8 +24,9 @@ import { PlayerProfileModal } from './components/PlayerProfileModal';
 import { VehicleDashboard } from './components/VehicleDashboard';
 import { DrivingDiagnosticPanel } from './components/DrivingDiagnosticPanel';
 import { multiplayerService } from './multiplayer/multiplayerService';
-import { PlayerData, ChatMessage, MultiplayerUser } from './multiplayer/types';
+import { PlayerData, ChatMessage, MultiplayerUser, LocalAvatarConfig, AvatarColor, AvatarType, GenderType } from './multiplayer/types';
 import { AboutModal } from './components/AboutModal';
+import { AvatarCustomizerModal } from './components/AvatarCustomizerModal';
 import { PavilionInteractionPoint } from './world/creatorPavilionInterior';
 import { PavilionInteractionModal } from './components/PavilionInteractionModal';
 import { PavilionHUD } from './components/PavilionHUD';
@@ -38,7 +39,8 @@ import { NPCInteractionModal } from './components/NPCInteractionModal';
 import { ContextualLocationModal } from './components/ContextualLocationModal';
 import { GestureToolbar } from './components/GestureToolbar';
 import { ActiveNPCEntity, WorldInteractionSpot } from './world/npcBehaviorSystem';
-import { HumanoidGesture } from './world/humanoidCharacterSystem';
+import { HumanoidGesture, HumanHairStyle } from './world/humanoidCharacterSystem';
+import { characterAssetManager, CharacterLoadError } from './world/glbCharacterLoader';
 
 export default function App() {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -78,10 +80,53 @@ export default function App() {
   const [avatarCurrentSpeed, setAvatarCurrentSpeed] = useState(0);
   const [movementSpeedMultiplier, setMovementSpeedMultiplier] = useState(1.0);
   const [lookSensitivityMultiplier, setLookSensitivityMultiplier] = useState(1.0);
+  const [isAvatarCustomizerOpen, setIsAvatarCustomizerOpen] = useState(false);
+  const [isSoloAvatarActive, setIsSoloAvatarActive] = useState(false);
+  const [maleModelError, setMaleModelError] = useState<CharacterLoadError | null>(null);
+  const [dismissedModelError, setDismissedModelError] = useState(false);
+  const [localAvatarConfig, setLocalAvatarConfig] = useState<LocalAvatarConfig>(() => {
+    try {
+      return {
+        displayName: localStorage.getItem('3dworld_player_name') || 'Explorer',
+        avatarColor: (localStorage.getItem('3dworld_avatar_color') as AvatarColor) || 'cyan',
+        avatarType: (localStorage.getItem('3dworld_avatar_style') as AvatarType) || 'casual',
+        gender: (localStorage.getItem('3dworld_avatar_gender') as GenderType) || 'male',
+        skinTone: localStorage.getItem('3dworld_avatar_skin_tone') || 'warmBeige',
+        hairStyle: localStorage.getItem('3dworld_avatar_hair_style') || 'short_crop',
+        hairColor: localStorage.getItem('3dworld_avatar_hair_color') || 'darkBrown',
+        eyeColor: localStorage.getItem('3dworld_avatar_eye_color') || 'brown',
+      };
+    } catch {
+      return {
+        displayName: 'Explorer',
+        avatarColor: 'cyan',
+        avatarType: 'casual',
+        gender: 'male',
+        skinTone: 'warmBeige',
+        hairStyle: 'short_crop',
+        hairColor: 'darkBrown',
+        eyeColor: 'brown',
+      };
+    }
+  });
+
+  // Track Athletic_man.glb / .fbx load errors so male player never falls back silently
+  useEffect(() => {
+    const syncError = () => {
+      const err = characterAssetManager.getErrorForRole('player_male');
+      setMaleModelError(err);
+      if (!err) {
+        setDismissedModelError(false);
+      }
+    };
+    void characterAssetManager.initManifest().then(syncError);
+    const unsub = characterAssetManager.onModelsUpdated(syncError);
+    return () => unsub();
+  }, []);
 
   // Monitor real-time local avatar movement velocity
   useEffect(() => {
-    if (!isMultiplayerActive) {
+    if (!isMultiplayerActive && !isSoloAvatarActive) {
       setAvatarCurrentSpeed(0);
       return;
     }
@@ -90,7 +135,7 @@ export default function App() {
       setAvatarCurrentSpeed(spd);
     }, 120);
     return () => clearInterval(interval);
-  }, [isMultiplayerActive]);
+  }, [isMultiplayerActive, isSoloAvatarActive]);
 
   // Persistent World & Simulation Preferences
   const [lightingMode, setLightingMode] = useState<LightingMode>('day');
@@ -594,17 +639,38 @@ export default function App() {
   const handleJoinedMultiplayer = useCallback((user: MultiplayerUser) => {
     setMultiplayerUser(user);
     setIsMultiplayerActive(true);
+    setIsSoloAvatarActive(false);
     setHeroDismissed(true);
     setSelectedLandmark(null);
     setSelectedBuilding(null);
     setActiveLocationId(null);
 
-    // Spawn 3D avatar in village
+    setLocalAvatarConfig({
+      displayName: user.displayName,
+      avatarColor: user.avatarColor,
+      avatarType: user.avatarType,
+      gender: user.gender || 'male',
+      skinTone: user.skinTone || 'warmBeige',
+      hairStyle: user.hairStyle || 'short_crop',
+      hairColor: user.hairColor || 'darkBrown',
+      eyeColor: user.eyeColor || 'brown',
+    });
+
+    // Spawn 3D avatar in village with full appearance customization
     sceneManagerRef.current?.avatars.spawnLocalAvatar(
       user.displayName,
       user.avatarColor,
-      user.avatarType
+      user.avatarType,
+      undefined,
+      {
+        gender: user.gender || 'male',
+        hairStyle: (user.hairStyle as HumanHairStyle) || 'short_crop',
+        skinTone: user.skinTone || 'warmBeige',
+        hairColor: user.hairColor || 'darkBrown',
+        eyeColor: user.eyeColor || 'brown',
+      }
     );
+    sceneManagerRef.current?.avatars.setEnabled(true);
     sceneManagerRef.current?.avatars.setFollowCamera(true);
     setFollowCamera(true);
 
@@ -619,9 +685,62 @@ export default function App() {
     sceneManagerRef.current?.avatars.removeLocalAvatar();
     sceneManagerRef.current?.avatars.setFollowCamera(false);
     setIsMultiplayerActive(false);
+    setIsSoloAvatarActive(false);
     setMultiplayerUser(null);
     soundManager.playInteractSound();
   }, []);
+
+  const handleApplyAvatarCustomization = useCallback((cfg: LocalAvatarConfig) => {
+    setLocalAvatarConfig(cfg);
+    setHeroDismissed(true);
+    setSelectedLandmark(null);
+    setSelectedBuilding(null);
+    setActiveLocationId(null);
+
+    sceneManagerRef.current?.avatars.updateLocalAvatarAppearance(
+      cfg.displayName,
+      cfg.avatarColor,
+      cfg.avatarType,
+      {
+        gender: cfg.gender,
+        hairStyle: cfg.hairStyle as HumanHairStyle,
+        skinTone: cfg.skinTone,
+        hairColor: cfg.hairColor,
+        eyeColor: cfg.eyeColor,
+      }
+    );
+    sceneManagerRef.current?.avatars.setEnabled(true);
+    sceneManagerRef.current?.avatars.setFollowCamera(true);
+    setFollowCamera(true);
+
+    if (!isMultiplayerActive) {
+      setIsSoloAvatarActive(true);
+    } else if (multiplayerUser) {
+      setMultiplayerUser({
+        ...multiplayerUser,
+        displayName: cfg.displayName,
+        avatarColor: cfg.avatarColor,
+        avatarType: cfg.avatarType,
+        gender: cfg.gender,
+        skinTone: cfg.skinTone,
+        hairStyle: cfg.hairStyle,
+        hairColor: cfg.hairColor,
+        eyeColor: cfg.eyeColor,
+      });
+    }
+
+    multiplayerService.updateProfileSettings(
+      cfg.displayName,
+      cfg.avatarColor,
+      cfg.avatarType,
+      cfg.gender,
+      cfg.skinTone,
+      cfg.hairStyle,
+      cfg.hairColor,
+      cfg.eyeColor
+    );
+    soundManager.playInteractSound();
+  }, [isMultiplayerActive, multiplayerUser]);
 
   const handleToggleFollowCamera = useCallback(() => {
     setFollowCamera((prev) => {
@@ -925,6 +1044,10 @@ export default function App() {
         onToggleBuildMode={() => handleToggleBuildMode()}
         isMultiplayerActive={isMultiplayerActive}
         onToggleMultiplayer={handleToggleMultiplayer}
+        onOpenAvatarCustomizer={() => {
+          setIsAvatarCustomizerOpen(true);
+          soundManager.playInteractSound();
+        }}
         multiplayerPlayerCount={remotePlayers.length + 1}
         lightingMode={lightingMode}
         onCycleLighting={handleCycleLighting}
@@ -946,6 +1069,46 @@ export default function App() {
           onOpenCreator={handleOpenCreator}
         />
       )}
+
+      {/* 4b. Clear Asset Loading Error Banner for Missing Male Model (No Silent Mannequin Fallback) */}
+      {!cinemaMode &&
+        !dismissedModelError &&
+        maleModelError &&
+        (isMultiplayerActive || isSoloAvatarActive) &&
+        localAvatarConfig.gender === 'male' && (
+          <div
+            role="alert"
+            className="fixed top-16 left-1/2 -translate-x-1/2 z-40 max-w-lg w-[92vw] rounded-xl border border-rose-500/50 bg-[#1a0a12]/95 px-4 py-3 shadow-2xl pointer-events-auto"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <p className="text-xs font-bold text-rose-200 tracking-wide uppercase">
+                  Male Player 3D Model Failed to Load
+                </p>
+                <p className="text-xs text-slate-200 leading-relaxed">
+                  {maleModelError.message}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDismissedModelError(true)}
+                aria-label="Dismiss model error notice"
+                className="text-xs text-slate-400 hover:text-white px-1.5 py-0.5 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="mt-2.5 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsAvatarCustomizerOpen(true)}
+                className="px-3 py-1 rounded-lg bg-rose-500/25 hover:bg-rose-500/40 border border-rose-400/50 text-xs font-semibold text-rose-100 cursor-pointer"
+              >
+                Load Athletic_man.glb / .fbx
+              </button>
+            </div>
+          </div>
+        )}
 
       {/* Street Exploration Quick Banner (When roaming in Street view) */}
       {!cinemaMode && !isBuildMode && viewMode === 'street' && !activeLocation && !selectedBuilding && (
@@ -1110,6 +1273,10 @@ export default function App() {
               setLookSensitivityMultiplier(sensMult);
               sceneManagerRef.current?.avatars?.setMovementSettings(speedMult, sensMult);
             }}
+            onOpenAvatarCustomizer={() => {
+              setIsAvatarCustomizerOpen(true);
+              soundManager.playInteractSound();
+            }}
           />
 
           <MultiplayerChat
@@ -1139,6 +1306,27 @@ export default function App() {
             />
           )}
         </>
+      )}
+
+      {/* Solo Explorer Touch Controls when Avatar Studio spawned a solo character */}
+      {!cinemaMode && !isMultiplayerActive && isSoloAvatarActive && !isDriving && (
+        <VirtualJoystick
+          onMove={(forward, strafe) => {
+            sceneManagerRef.current?.avatars.setTouchJoystickInput(forward, strafe);
+          }}
+          onLook={(dx, dy) => {
+            sceneManagerRef.current?.avatars.setTouchLookDelta(dx, dy);
+          }}
+          onJump={() => {
+            sceneManagerRef.current?.avatars.triggerJump();
+          }}
+          onSprintToggle={() => {
+            sceneManagerRef.current?.avatars.toggleSprint();
+          }}
+          onCenterCamera={() => {
+            sceneManagerRef.current?.avatars.centerCamera();
+          }}
+        />
       )}
 
       {/* 8d. Electric Roadster Driving HUD & Touch Controls */}
@@ -1181,6 +1369,15 @@ export default function App() {
         isOpen={isMultiplayerModalOpen}
         onClose={() => setIsMultiplayerModalOpen(false)}
         onJoined={handleJoinedMultiplayer}
+      />
+
+      {/* Human Character & Avatar Customizer Studio (3D Preview + Local GLB Tester) */}
+      <AvatarCustomizerModal
+        isOpen={isAvatarCustomizerOpen}
+        onClose={() => setIsAvatarCustomizerOpen(false)}
+        initialConfig={localAvatarConfig}
+        isMultiplayerActive={isMultiplayerActive}
+        onApply={handleApplyAvatarCustomization}
       />
 
       {/* Selected Remote Player Profile Card */}

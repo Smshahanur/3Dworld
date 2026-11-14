@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { MaterialLibrary } from '../world/materials';
-import { PlayerData, AvatarColor, AvatarType, AVATAR_COLORS } from './types';
+import { PlayerData, AvatarColor, AvatarType, AVATAR_COLORS, LocalAvatarConfig } from './types';
 import { multiplayerService, DEFAULT_SPAWN_POSITION } from './multiplayerService';
 import { checkObstacleCollision, MAP_BOUNDS } from '../world/collisionSystem';
 import {
@@ -11,6 +11,7 @@ import {
   HumanGender,
   SKIN_TONES,
   HAIR_COLORS,
+  EYE_COLORS,
   HumanoidGesture,
 } from '../world/humanoidCharacterSystem';
 
@@ -41,15 +42,16 @@ export class AvatarManager {
   private localNameSprite: THREE.Sprite | null = null;
   private localPosition: THREE.Vector3 = new THREE.Vector3(...DEFAULT_SPAWN_POSITION);
   private localRotation: number = 0;
+  private localTurnRate: number = 0;
   private localWalkTime: number = 0;
   private isLocalMoving: boolean = false;
 
   // Realistic Movement Physics State
   // Default values based on human locomotion specifications:
-  // Walking: 2.0 m/s | Running: 4.0 m/s | Sprinting: 5.5 m/s
-  public static readonly WALK_SPEED = 2.0;
-  public static readonly RUN_SPEED = 4.0;
-  public static readonly SPRINT_SPEED = 5.5;
+  // Walking: approximately 1.4 m/s | Running: approximately 3.5 m/s | Sprinting: approximately 5.0 m/s
+  public static readonly WALK_SPEED = 1.4;
+  public static readonly RUN_SPEED = 3.5;
+  public static readonly SPRINT_SPEED = 5.0;
 
   private currentVelocity: THREE.Vector3 = new THREE.Vector3();
   private isRunning: boolean = false;
@@ -102,9 +104,14 @@ export class AvatarManager {
   private isEnabled: boolean = true;
 
   // Current customization options
+  private currentDisplayName: string = 'Explorer';
+  private currentColor: AvatarColor = 'cyan';
+  private currentStyle: AvatarType = 'casual';
   private currentGender: HumanGender = 'male';
   private currentHairStyle: HumanHairStyle = 'short_crop';
   private currentSkinTone: string = 'warmBeige';
+  private currentHairColor: string = 'darkBrown';
+  private currentEyeColor: string = 'brown';
   private currentGesture: HumanoidGesture = 'none';
 
   // Event handlers for clean disposal
@@ -143,7 +150,13 @@ export class AvatarManager {
     color: AvatarColor,
     style: AvatarType,
     spawnPos: [number, number, number] = DEFAULT_SPAWN_POSITION,
-    customOptions?: { gender?: HumanGender; hairStyle?: HumanHairStyle; skinTone?: string }
+    customOptions?: {
+      gender?: HumanGender;
+      hairStyle?: HumanHairStyle;
+      skinTone?: string;
+      hairColor?: string;
+      eyeColor?: string;
+    }
   ) {
     this.removeLocalAvatar();
 
@@ -153,9 +166,14 @@ export class AvatarManager {
     this.velocityY = 0;
     this.isJumping = false;
 
+    this.currentDisplayName = displayName;
+    this.currentColor = color;
+    this.currentStyle = style;
     if (customOptions?.gender) this.currentGender = customOptions.gender;
     if (customOptions?.hairStyle) this.currentHairStyle = customOptions.hairStyle;
     if (customOptions?.skinTone) this.currentSkinTone = customOptions.skinTone;
+    if (customOptions?.hairColor) this.currentHairColor = customOptions.hairColor;
+    if (customOptions?.eyeColor) this.currentEyeColor = customOptions.eyeColor;
 
     const { group, rig, nameSprite } = this.createHumanoidAvatarMesh(
       displayName,
@@ -164,7 +182,9 @@ export class AvatarManager {
       true,
       this.currentGender,
       this.currentHairStyle,
-      this.currentSkinTone
+      this.currentSkinTone,
+      this.currentHairColor,
+      this.currentEyeColor
     );
 
     this.localAvatarGroup = group;
@@ -180,10 +200,27 @@ export class AvatarManager {
     this.snapCameraToLocalAvatar();
   }
 
+  public getLocalAvatarConfig(): LocalAvatarConfig {
+    return {
+      displayName: this.currentDisplayName,
+      avatarColor: this.currentColor,
+      avatarType: this.currentStyle,
+      gender: this.currentGender,
+      skinTone: this.currentSkinTone,
+      hairStyle: this.currentHairStyle,
+      hairColor: this.currentHairColor,
+      eyeColor: this.currentEyeColor,
+    };
+  }
+
   public removeLocalAvatar() {
     if (this.localAvatarGroup) {
       this.group.remove(this.localAvatarGroup);
       this.localRig?.dispose();
+      if (this.localNameSprite) {
+        this.localNameSprite.material.map?.dispose();
+        this.localNameSprite.material.dispose();
+      }
       this.localAvatarGroup = null;
       this.localRig = null;
       this.localNameSprite = null;
@@ -194,10 +231,17 @@ export class AvatarManager {
     displayName: string,
     color: AvatarColor,
     style: AvatarType,
-    customOptions?: { gender?: HumanGender; hairStyle?: HumanHairStyle; skinTone?: string }
+    customOptions?: {
+      gender?: HumanGender;
+      hairStyle?: HumanHairStyle;
+      skinTone?: string;
+      hairColor?: string;
+      eyeColor?: string;
+    }
   ) {
-    if (!this.localAvatarGroup) return;
-    const currentPos: [number, number, number] = [this.localPosition.x, this.localPosition.y, this.localPosition.z];
+    const currentPos: [number, number, number] = this.localAvatarGroup
+      ? [this.localPosition.x, this.localPosition.y, this.localPosition.z]
+      : DEFAULT_SPAWN_POSITION;
     const currentRot = this.localRotation;
     this.spawnLocalAvatar(displayName, color, style, currentPos, customOptions);
     this.localRotation = currentRot;
@@ -226,6 +270,18 @@ export class AvatarManager {
     };
   }
 
+  public getLocalModelError() {
+    return this.localRig?.getLoadError() ?? null;
+  }
+
+  public getLocalModelInspection() {
+    return this.localRig?.getModelInspection() ?? null;
+  }
+
+  public getLocalRigMode() {
+    return this.localRig?.getRigMode() ?? null;
+  }
+
   // ---------------------------------------------------------------------------
   // 2. PROCEDURAL HUMANOID MESH GENERATOR
   // ---------------------------------------------------------------------------
@@ -236,7 +292,9 @@ export class AvatarManager {
     isLocal: boolean,
     gender: HumanGender = 'male',
     hairStyleParam?: HumanHairStyle,
-    skinToneKey?: string
+    skinToneKey?: string,
+    hairColorKey?: string,
+    eyeColorKey?: string
   ): {
     group: THREE.Group;
     rig: HumanoidRig;
@@ -256,13 +314,13 @@ export class AvatarManager {
       hairStyle = hairStyleParam || (gender === 'female' ? 'long_flowing' : 'short_crop');
     } else if (style === 'builder') {
       outfitType = 'builder';
-      hairStyle = 'builder_helmet';
+      hairStyle = hairStyleParam || 'builder_helmet';
     } else if (style === 'cyber') {
       outfitType = 'cyber';
-      hairStyle = 'cyber_visor';
+      hairStyle = hairStyleParam || 'cyber_visor';
     } else if (style === 'explorer') {
       outfitType = 'explorer';
-      hairStyle = 'explorer_hat';
+      hairStyle = hairStyleParam || 'explorer_hat';
     } else {
       outfitType = 'casual';
       hairStyle = hairStyleParam || (gender === 'female' ? 'long_flowing' : 'pompadour');
@@ -273,16 +331,27 @@ export class AvatarManager {
       skinToneKey && (SKIN_TONES as Record<string, number>)[skinToneKey]
         ? (SKIN_TONES as Record<string, number>)[skinToneKey]
         : SKIN_TONES.warmBeige;
+    const hairColorVal =
+      hairColorKey && (HAIR_COLORS as Record<string, number>)[hairColorKey]
+        ? (HAIR_COLORS as Record<string, number>)[hairColorKey]
+        : HAIR_COLORS.darkBrown;
+    const eyeColorVal =
+      eyeColorKey && (EYE_COLORS as Record<string, number>)[eyeColorKey]
+        ? (EYE_COLORS as Record<string, number>)[eyeColorKey]
+        : EYE_COLORS.brown;
 
-    // Build procedural articulated humanoid rig
+    // Build GLB/FBX-backed articulated humanoid rig (strictly required for male player & compatible male avatars)
     const rig = createHumanoidCharacter({
       gender,
+      roleKey: gender === 'female' ? 'player_female' : 'player_male',
+      strictAssetRequired: gender === 'male' && typeof window !== 'undefined',
       hairStyle,
       outfitType,
       primaryColor: colorHex,
       secondaryColor: 0xffffff,
       skinTone: skinToneVal,
-      hairColor: HAIR_COLORS.darkBrown,
+      hairColor: hairColorVal,
+      eyeColor: eyeColorVal,
       pantsColor: 0x1e293b,
       shoesColor: 0x0f172a,
       castShadow: !this.isSoftwareGl,
@@ -433,7 +502,9 @@ export class AvatarManager {
             false,
             p.gender || 'male',
             p.hairStyle as HumanHairStyle,
-            p.skinTone
+            p.skinTone,
+            p.hairColor,
+            p.eyeColor
           );
 
           group.position.set(p.position[0], p.position[1], p.position[2]);
@@ -463,6 +534,8 @@ export class AvatarManager {
         if (!activeUids.has(uid)) {
           this.group.remove(entry.group);
           entry.rig.dispose();
+          entry.nameSprite.material.map?.dispose();
+          entry.nameSprite.material.dispose();
           this.remoteAvatars.delete(uid);
         }
       }
@@ -810,12 +883,15 @@ export class AvatarManager {
         Math.sin(targetAngle - this.localRotation),
         Math.cos(targetAngle - this.localRotation)
       );
-      this.localRotation += angleDiff * Math.min(1.0, dt * this.turnRate);
+      const rotStep = angleDiff * Math.min(1.0, dt * this.turnRate);
+      this.localRotation += rotStep;
+      this.localTurnRate = dt > 0.0001 ? rotStep / dt : 0;
 
       // Stride cadence strictly tied to actual horizontal displacement speed
-      // At 2.0m/s walk, cadence advances ~5.2 rad/s (approx 1.7 steps/sec, standard human cadence)
-      const strideRatio = 2.6;
+      const strideRatio = 3.4;
       this.localWalkTime += dt * actualHorizontalSpeed * strideRatio;
+    } else {
+      this.localTurnRate = 0;
     }
 
     this.localAvatarGroup.position.copy(this.localPosition);
@@ -826,17 +902,20 @@ export class AvatarManager {
       this.currentGesture = 'none';
     }
 
-    // Animate articulated humanoid rig with natural gait and physics
+    // Animate articulated humanoid rig with natural gait, turning, physics & camera LOD
     if (this.localRig) {
+      const camDist = this.camera.position.distanceTo(this.localPosition);
       this.localRig.updateAnimation(
         this.localWalkTime,
         this.isLocalMoving,
-        this.isSprinting || (this.isRunning && actualHorizontalSpeed > 3.6),
+        this.isSprinting || (this.isRunning && actualHorizontalSpeed > 3.0),
         this.isJumping,
         this.velocityY,
         dt,
         actualHorizontalSpeed,
-        this.currentGesture
+        this.currentGesture,
+        camDist,
+        this.localTurnRate
       );
     }
   }
@@ -846,34 +925,38 @@ export class AvatarManager {
       const dist = entry.group.position.distanceTo(entry.targetPosition);
       const isMoving = dist > 0.06;
       entry.isMoving = isMoving;
+      let turnRate = 0;
 
       if (isMoving) {
-        // Smooth interpolation towards network position
         const lerpFactor = Math.min(1.0, dt * 10.0);
         entry.group.position.lerp(entry.targetPosition, lerpFactor);
 
-        // Smooth rotation interpolation
         const rotDiff = Math.atan2(
           Math.sin(entry.targetRotation - entry.group.rotation.y),
           Math.cos(entry.targetRotation - entry.group.rotation.y)
         );
-        entry.group.rotation.y += rotDiff * Math.min(1.0, dt * 10.0);
+        const rotStep = rotDiff * Math.min(1.0, dt * 10.0);
+        entry.group.rotation.y += rotStep;
+        turnRate = dt > 0.0001 ? rotStep / dt : 0;
 
-        // Calculate approximate speed for gait synchronization
-        entry.actualSpeed = Math.min(5.5, dist / Math.max(0.001, dt));
-        entry.walkTime += dt * Math.max(1.8, entry.actualSpeed) * 2.6;
+        entry.actualSpeed = Math.min(5.0, dist / Math.max(0.001, dt));
+        entry.walkTime += dt * Math.max(1.4, entry.actualSpeed) * 3.4;
       } else {
         entry.actualSpeed = 0;
       }
 
+      const camDist = this.camera.position.distanceTo(entry.group.position);
       entry.rig.updateAnimation(
         entry.walkTime,
         isMoving,
-        entry.actualSpeed > 4.2,
+        entry.actualSpeed > 3.8,
         false,
         0,
         dt,
-        entry.actualSpeed
+        entry.actualSpeed,
+        'none',
+        camDist,
+        turnRate
       );
     }
   }
@@ -885,9 +968,27 @@ export class AvatarManager {
     const hDist = this.cameraDistance * Math.cos(this.cameraPitch);
     const vDist = this.cameraDistance * Math.sin(this.cameraPitch);
 
-    const targetCamX = this.localPosition.x + Math.sin(this.cameraYaw) * hDist;
-    const targetCamY = Math.max(1.15, this.localPosition.y + 1.35 + vDist);
-    const targetCamZ = this.localPosition.z + Math.cos(this.cameraYaw) * hDist;
+    // Anti-Clipping Obstacle Collision Check along the camera ray
+    let effectiveDist = this.cameraDistance;
+    const camDirX = Math.sin(this.cameraYaw) * Math.cos(this.cameraPitch);
+    const camDirZ = Math.cos(this.cameraYaw) * Math.cos(this.cameraPitch);
+
+    for (let frac = 0.3; frac <= 1.0; frac += 0.25) {
+      const testX = this.localPosition.x + camDirX * (this.cameraDistance * frac);
+      const testZ = this.localPosition.z + camDirZ * (this.cameraDistance * frac);
+      const col = checkObstacleCollision(testX, testZ, 0.40);
+      if (col.collided) {
+        effectiveDist = Math.max(1.8, this.cameraDistance * (frac - 0.12));
+        break;
+      }
+    }
+
+    const effHDist = effectiveDist * Math.cos(this.cameraPitch);
+    const effVDist = effectiveDist * Math.sin(this.cameraPitch);
+
+    const targetCamX = this.localPosition.x + Math.sin(this.cameraYaw) * effHDist;
+    const targetCamY = Math.max(1.15, this.localPosition.y + 1.35 + effVDist);
+    const targetCamZ = this.localPosition.z + Math.cos(this.cameraYaw) * effHDist;
 
     // Exponential smoothing for silky-smooth follow without vibration
     const dampPos = 1 - Math.exp(-12 * dt);
@@ -988,6 +1089,8 @@ export class AvatarManager {
     for (const entry of this.remoteAvatars.values()) {
       this.group.remove(entry.group);
       entry.rig.dispose();
+      entry.nameSprite.material.map?.dispose();
+      entry.nameSprite.material.dispose();
     }
     this.remoteAvatars.clear();
 

@@ -12,6 +12,7 @@ interface NavbarProps {
   onToggleBuildMode?: () => void;
   isMultiplayerActive?: boolean;
   onToggleMultiplayer?: () => void;
+  onOpenAvatarCustomizer?: () => void;
   multiplayerPlayerCount?: number;
   lightingMode: LightingMode;
   onCycleLighting: () => void;
@@ -33,6 +34,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onToggleBuildMode,
   isMultiplayerActive = false,
   onToggleMultiplayer,
+  onOpenAvatarCustomizer,
   multiplayerPlayerCount = 1,
   lightingMode,
   onCycleLighting,
@@ -161,6 +163,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span>{isMultiplayerActive ? `Online (${multiplayerPlayerCount})` : 'Multiplayer'}</span>
           </button>
         )}
+        {onOpenAvatarCustomizer && (
+          <button
+            onClick={onOpenAvatarCustomizer}
+            aria-label="Customize Human Character Avatar"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold text-cyan-200 hover:text-white hover:bg-cyan-950/50 border border-cyan-400/30 transition-all cursor-pointer"
+          >
+            <User className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Avatar</span>
+          </button>
+        )}
         <button
           onClick={onDiscoverClick}
           aria-label="Discover 3DWorld Districts and Buildings"
@@ -194,6 +206,17 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Users className="w-3.5 h-3.5" />
             <span>{isMultiplayerActive ? `${multiplayerPlayerCount}` : 'Online'}</span>
+          </button>
+        )}
+        {onOpenAvatarCustomizer && (
+          <button
+            onClick={onOpenAvatarCustomizer}
+            title="Customize Human Avatar"
+            aria-label="Customize Human Avatar"
+            className="md:hidden flex items-center gap-1 px-2.5 py-1.5 rounded-full glass-panel border border-cyan-400/40 text-cyan-200 hover:text-white transition-all cursor-pointer text-xs font-semibold"
+          >
+            <User className="w-3.5 h-3.5" />
+            <span>Avatar</span>
           </button>
         )}
         {onToggleBuildMode && (

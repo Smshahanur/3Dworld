@@ -50,6 +50,24 @@ export const AVATAR_HAIRSTYLES = [
   { id: 'beanie', label: 'Urban Beanie' },
 ];
 
+export const AVATAR_HAIR_COLORS = [
+  { id: 'black', label: 'Jet Black', hex: '#18181b' },
+  { id: 'darkBrown', label: 'Dark Espresso', hex: '#271c19' },
+  { id: 'chestnut', label: 'Warm Chestnut', hex: '#4a2e1b' },
+  { id: 'auburn', label: 'Auburn Copper', hex: '#6d2a1b' },
+  { id: 'blonde', label: 'Golden Blonde', hex: '#b58b4c' },
+  { id: 'silver', label: 'Silver Ash', hex: '#94a3b8' },
+];
+
+export const AVATAR_EYE_COLORS = [
+  { id: 'brown', label: 'Deep Brown', hex: '#45220c' },
+  { id: 'hazel', label: 'Warm Hazel', hex: '#5c4827' },
+  { id: 'amber', label: 'Amber Gold', hex: '#82521c' },
+  { id: 'green', label: 'Forest Green', hex: '#235338' },
+  { id: 'blue', label: 'Ocean Blue', hex: '#1d4ed8' },
+  { id: 'charcoal', label: 'Slate Charcoal', hex: '#1f2937' },
+];
+
 export const AVATAR_COLORS: { id: AvatarColor; hex: string; label: string }[] = [
   { id: 'cyan', hex: '#06b6d4', label: 'Neon Cyan' },
   { id: 'emerald', hex: '#10b981', label: 'Emerald' },
@@ -61,6 +79,17 @@ export const AVATAR_COLORS: { id: AvatarColor; hex: string; label: string }[] = 
   { id: 'amber', hex: '#d97706', label: 'Warm Amber' },
 ];
 
+export interface LocalAvatarConfig {
+  displayName: string;
+  avatarColor: AvatarColor;
+  avatarType: AvatarType;
+  gender: GenderType;
+  skinTone: string;
+  hairStyle: string;
+  hairColor: string;
+  eyeColor: string;
+}
+
 export interface PlayerData {
   uid: string;
   displayName: string;
@@ -69,6 +98,8 @@ export interface PlayerData {
   gender?: GenderType;
   skinTone?: string;
   hairStyle?: string;
+  hairColor?: string;
+  eyeColor?: string;
   position: [number, number, number];
   rotation: number;
   isMoving: boolean;
@@ -103,6 +134,8 @@ export interface MultiplayerUser {
   gender?: GenderType;
   skinTone?: string;
   hairStyle?: string;
+  hairColor?: string;
+  eyeColor?: string;
 }
 
 export type CameraFollowMode = 'third_person' | 'free_orbit';

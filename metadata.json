@@ -1,6 +1,6 @@
 {
   "name": "3DWorld",
-  "description": "Explore 3DWorld, an interactive 3D virtual universe created by Shahanur Mollah. Discover virtual villages, modern towns, realistic environments, vehicles and multiplayer exploration.",
+  "description": "Explore 3DWorld, an interactive 3D virtual universe featuring realistic villages, modern cities, vehicles, AI characters, exploration and multiplayer experiences.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
