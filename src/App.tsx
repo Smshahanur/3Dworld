@@ -38,6 +38,8 @@ import { WorldInteractionPrompt } from './components/WorldInteractionPrompt';
 import { NPCInteractionModal } from './components/NPCInteractionModal';
 import { ContextualLocationModal } from './components/ContextualLocationModal';
 import { GestureToolbar } from './components/GestureToolbar';
+import { Map } from 'lucide-react';
+import { WorldSettingsMenu } from './components/WorldSettingsMenu';
 import { ActiveNPCEntity, WorldInteractionSpot } from './world/npcBehaviorSystem';
 import { HumanoidGesture, HumanHairStyle } from './world/humanoidCharacterSystem';
 import { characterAssetManager, CharacterLoadError } from './world/glbCharacterLoader';
@@ -52,6 +54,8 @@ export default function App() {
   const [hasWebGL, setHasWebGL] = useState(true);
   const [heroDismissed, setHeroDismissed] = useState(false);
   const [cinemaMode, setCinemaMode] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isMinimapOpen, setIsMinimapOpen] = useState(false);
 
   // Construction Build Mode State
   const [isBuildMode, setIsBuildMode] = useState(false);
@@ -121,7 +125,11 @@ export default function App() {
     };
     void characterAssetManager.initManifest().then(syncError);
     const unsub = characterAssetManager.onModelsUpdated(syncError);
-    return () => unsub();
+    const unsubErr = characterAssetManager.onErrorsUpdated(syncError);
+    return () => {
+      unsub();
+      unsubErr();
+    };
   }, []);
 
   // Monitor real-time local avatar movement velocity
@@ -219,6 +227,8 @@ export default function App() {
       const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
       if (!gl) {
         setHasWebGL(false);
+      } else {
+        gl.getExtension('WEBGL_lose_context')?.loseContext();
       }
     } catch {
       setHasWebGL(false);
@@ -240,8 +250,10 @@ export default function App() {
       });
     }, 120);
 
-    const sm = new SceneManager({
-      container: mountRef.current,
+    let sm: SceneManager;
+    try {
+      sm = new SceneManager({
+        container: mountRef.current,
       onSelectLandmark: (loc) => {
         setActiveLocationId(loc.id);
         setSelectedLandmark(loc);
@@ -355,6 +367,12 @@ export default function App() {
         }, 350);
       },
     });
+    } catch (err) {
+      clearInterval(progressTimer);
+      console.warn('[3DWorld] SceneManager WebGL initialization failed:', err);
+      setHasWebGL(false);
+      return;
+    }
 
     sceneManagerRef.current = sm;
 
@@ -521,6 +539,7 @@ export default function App() {
 
   // Handle Location Selection
   const handleSelectLocation = useCallback((loc: LocationData) => {
+    setHeroDismissed(true);
     setActiveLocationId(loc.id);
     setSelectedLandmark(loc);
     setSelectedBuilding(null);
@@ -530,6 +549,7 @@ export default function App() {
 
   // Handle Building Selection & Focus
   const handleSelectBuilding = useCallback((building: BuildingInfo) => {
+    setHeroDismissed(true);
     setSelectedBuilding(building);
     setActiveLocationId(null);
     setSelectedLandmark(null);
@@ -545,6 +565,7 @@ export default function App() {
 
   // Dedicated Creator Experience & 3D Creator Pavilion Navigation
   const handleOpenCreator = useCallback(() => {
+    setHeroDismissed(true);
     // 1. Capture current world state before entering Creator Studio if outside
     if (!isInsidePavilion && sceneManagerRef.current) {
       const camState = sceneManagerRef.current.getCameraState();
@@ -865,6 +886,7 @@ export default function App() {
     if (isDriving) {
       sceneManagerRef.current?.stopDriving();
     } else {
+      setHeroDismissed(true);
       sceneManagerRef.current?.startDriving();
     }
     soundManager.playInteractSound();
@@ -912,6 +934,7 @@ export default function App() {
         setSelectedBuilding(null);
         setIsDrawerOpen(false);
         setIsAboutOpen(false);
+        setIsSettingsOpen(false);
       } else if (e.key.toLowerCase() === 'h' && !isDrawerOpen && !isAboutOpen && !selectedLandmark && !selectedBuilding) {
         setCinemaMode((prev) => !prev);
       } else if (e.key.toLowerCase() === 't' && !isDrawerOpen && !isAboutOpen) {
@@ -936,6 +959,15 @@ export default function App() {
   }
 
   const activeLocation = LOCATIONS.find((l) => l.id === activeLocationId) || null;
+  const isInWorld =
+    heroDismissed ||
+    isBuildMode ||
+    isMultiplayerActive ||
+    isSoloAvatarActive ||
+    isDriving ||
+    isInsidePavilion ||
+    !!activeLocationId ||
+    !!selectedBuilding;
 
   return (
     <main className="relative w-screen h-screen overflow-hidden bg-[#060913] select-none text-slate-100">
@@ -1030,16 +1062,14 @@ export default function App() {
         </footer>
       </div>
 
-      {/* 4. Top Navigation Bar */}
+      {/* 4. Slim Header Bar */}
       <Navbar
         onHomeClick={() => {
           setHeroDismissed(false);
+          setIsMinimapOpen(false);
+          setIsSettingsOpen(false);
           handleResetView();
         }}
-        onExploreClick={handleExploreWorld}
-        onDiscoverClick={() => setIsDrawerOpen(true)}
-        onAboutClick={handleOpenCreator}
-        onCreatorClick={handleOpenCreator}
         isBuildMode={isBuildMode}
         onToggleBuildMode={() => handleToggleBuildMode()}
         isMultiplayerActive={isMultiplayerActive}
@@ -1049,14 +1079,40 @@ export default function App() {
           soundManager.playInteractSound();
         }}
         multiplayerPlayerCount={remotePlayers.length + 1}
+        cinemaMode={cinemaMode}
+        onToggleCinema={() => setCinemaMode((prev) => !prev)}
+        isSettingsOpen={isSettingsOpen}
+        onToggleSettings={() => setIsSettingsOpen((prev) => !prev)}
+        hoveredLandmark={hoveredLandmark}
+        isInWorld={isInWorld}
+      />
+
+      {/* World Settings Popover Menu */}
+      <WorldSettingsMenu
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
         lightingMode={lightingMode}
-        onCycleLighting={handleCycleLighting}
+        onSelectLighting={handleSelectLighting}
+        weatherMode={weatherMode}
+        onSelectWeather={handleSelectWeather}
+        formattedTime={formattedTime}
         soundEnabled={soundEnabled}
         onToggleSound={handleToggleSound}
-        cinemaMode={cinemaMode}
-        onToggleCinema={() => setCinemaMode(!cinemaMode)}
-        hoveredLandmark={hoveredLandmark}
-        formattedTime={formattedTime}
+        graphicsQuality={graphicsQuality}
+        onSelectGraphicsQuality={handleSelectGraphicsQuality}
+        ecoMode={ecoMode}
+        onToggleEcoMode={handleToggleEcoMode}
+        isInWorld={isInWorld}
+        isMinimapOpen={isMinimapOpen}
+        onToggleMinimap={() => setIsMinimapOpen((prev) => !prev)}
+        onOpenDiscover={() => setIsDrawerOpen(true)}
+        onOpenCreator={handleOpenCreator}
+        onToggleCinema={() => setCinemaMode((prev) => !prev)}
+        onReturnHome={() => {
+          setHeroDismissed(false);
+          setIsMinimapOpen(false);
+          handleResetView();
+        }}
       />
 
       {/* 5. Destination Banner (When visiting a specific district) */}
@@ -1083,7 +1139,7 @@ export default function App() {
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
                 <p className="text-xs font-bold text-rose-200 tracking-wide uppercase">
-                  Male Player 3D Model Failed to Load
+                  Athletic_man.glb Not Found (Using Safe Fallback)
                 </p>
                 <p className="text-xs text-slate-200 leading-relaxed">
                   {maleModelError.message}
@@ -1110,11 +1166,11 @@ export default function App() {
           </div>
         )}
 
-      {/* Street Exploration Quick Banner (When roaming in Street view) */}
-      {!cinemaMode && !isBuildMode && viewMode === 'street' && !activeLocation && !selectedBuilding && (
+      {/* Street Exploration Quick Banner (Only inside playable world) */}
+      {isInWorld && !cinemaMode && !isBuildMode && viewMode === 'street' && !activeLocation && !selectedBuilding && (
         <div className="fixed top-16 left-1/2 -translate-x-1/2 z-30 animate-in fade-in slide-in-from-top-2 duration-300 pointer-events-auto max-w-[92vw]">
           <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-cyan-400/40 bg-[#080d19]/90 shadow-2xl backdrop-blur-md">
-            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shrink-0" />
+            <span className="w-2 h-2 rounded-full bg-cyan-400 shrink-0" />
             <span className="text-xs font-medium text-slate-200 truncate">
               Street Exploration • Drag / WASD to Roam
             </span>
@@ -1129,31 +1185,43 @@ export default function App() {
         </div>
       )}
 
-      {/* 5b. Interactive World Navigation Minimap (Three Districts & GPS Tracking) */}
-      {!cinemaMode && !isBuildMode && (
-        <WorldMinimap
-          getNavPositions={() => sceneManagerRef.current?.getNavPositions()}
-          onFastTravel={(district) => {
-            if (district === 'rural') {
-              sceneManagerRef.current?.flyTo([-110, 35, 45], [-110, 0, 0], 1.8);
-            } else if (district === 'modern') {
-              sceneManagerRef.current?.flyTo([-5, 45, 55], [-5, 0, 0], 1.8);
-            } else if (district === 'capital') {
-              sceneManagerRef.current?.flyTo([105, 65, 75], [105, 0, 0], 1.8);
-            }
-          }}
-          cinemaMode={cinemaMode}
-        />
+      {/* 5b. Compact World Minimap Toggle & Panel (Hidden on Homepage, On-demand Inside World) */}
+      {isInWorld && !cinemaMode && !isBuildMode && (
+        isMinimapOpen ? (
+          <WorldMinimap
+            getNavPositions={() => sceneManagerRef.current?.getNavPositions()}
+            onFastTravel={(district) => {
+              if (district === 'rural') {
+                sceneManagerRef.current?.flyTo([-110, 35, 45], [-110, 0, 0], 1.8);
+              } else if (district === 'modern') {
+                sceneManagerRef.current?.flyTo([-5, 45, 55], [-5, 0, 0], 1.8);
+              } else if (district === 'capital') {
+                sceneManagerRef.current?.flyTo([105, 65, 75], [105, 0, 0], 1.8);
+              }
+            }}
+            cinemaMode={cinemaMode}
+            offsetTop={isMultiplayerActive && !!multiplayerUser}
+            onClose={() => setIsMinimapOpen(false)}
+          />
+        ) : (!activeLocation && !selectedBuilding && !(isMultiplayerActive && !!multiplayerUser) && (
+          <button
+            type="button"
+            onClick={() => setIsMinimapOpen(true)}
+            aria-label="Show World Minimap"
+            className="fixed top-16 right-3 sm:right-6 z-30 bg-[#071022]/85 hover:bg-[#0b1833] backdrop-blur-md border border-white/10 hover:border-cyan-400/40 rounded-xl px-3 py-2 text-xs font-medium text-slate-200 hover:text-cyan-200 flex items-center gap-1.5 shadow-lg transition-colors cursor-pointer min-h-[40px]"
+          >
+            <Map className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+            <span>Map</span>
+          </button>
+        ))
       )}
 
-      {/* 6. Hero Intro Overlay (Full-screen hero presentation) */}
-      {!cinemaMode && !isBuildMode && !isMultiplayerActive && (
+      {/* 6. Clean Homepage Hero Overlay */}
+      {!cinemaMode && (
         <HeroOverlay
           onExploreWorld={handleExploreWorld}
           onDiscoverLocations={() => setIsDrawerOpen(true)}
-          onSelectLocation={handleSelectLocation}
-          isDismissed={heroDismissed}
-          onDismiss={() => setHeroDismissed(true)}
+          isDismissed={isInWorld}
         />
       )}
 
@@ -1171,8 +1239,8 @@ export default function App() {
         />
       )}
 
-      {/* 8a. Collapsible Bottom Control Dock (Exploration & Simulation HUD) */}
-      {!cinemaMode && !isBuildMode && !isDriving && (
+      {/* 8a. Collapsible Bottom Control Dock (Only inside playable world) */}
+      {isInWorld && !cinemaMode && !isBuildMode && !isDriving && (
         <BottomControlDock
           onResetView={handleResetView}
           autoRotate={autoRotate}
@@ -1188,6 +1256,8 @@ export default function App() {
           soundEnabled={soundEnabled}
           onToggleSound={handleToggleSound}
           onOpenDiscover={() => setIsDrawerOpen(true)}
+          isMinimapOpen={isMinimapOpen}
+          onToggleMinimap={() => setIsMinimapOpen((prev) => !prev)}
           viewMode={viewMode}
           onToggleViewMode={handleToggleViewMode}
           isBuildMode={isBuildMode}
@@ -1444,8 +1514,8 @@ export default function App() {
         initialTab={aboutInitialTab}
       />
 
-      {/* 14. Living Universe Interaction Prompt (Unobtrusive Floating Action Pill) */}
-      {!isInsidePavilion && !activeNPCModal && !activeSpotModal && (
+      {/* 14. Living Universe Interaction Prompt (Only inside playable world) */}
+      {isInWorld && !cinemaMode && !isInsidePavilion && !activeNPCModal && !activeSpotModal && (
         <WorldInteractionPrompt
           nearbyNPC={nearbyNPC}
           nearbySpot={nearbySpot}
@@ -1461,8 +1531,8 @@ export default function App() {
         />
       )}
 
-      {/* 15. Player Character Gesture Toolbar (Collapsible) */}
-      {!isInsidePavilion && (
+      {/* 15. Player Character Gesture Toolbar (Only inside playable world) */}
+      {isInWorld && !cinemaMode && !isInsidePavilion && (
         <GestureToolbar
           currentGesture={playerGesture}
           onSelectGesture={handlePlayerGesture}

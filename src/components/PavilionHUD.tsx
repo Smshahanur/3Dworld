@@ -55,9 +55,15 @@ export const PavilionHUD: React.FC<PavilionHUDProps> = ({
       {/* 2. Pavilion Navigation Toolbar when Inside */}
       {isInside && (
         <div className="pointer-events-auto flex items-center gap-2 p-1.5 rounded-2xl bg-[#091720]/85 border border-teal-500/30 shadow-lg shadow-black/40 backdrop-blur-md text-xs">
-          <div className="flex items-center gap-2 px-3 py-1.5 text-teal-300 font-medium border-r border-white/10">
-            <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
-            <span className="font-semibold tracking-wide">Creator Studio</span>
+          <div className="flex items-center gap-2 px-3 py-1.5 text-cyan-200 font-medium border-r border-white/10">
+            <img
+              src="/assets/branding/3dworld-logo-icon.png"
+              alt="3DWorld"
+              width={20}
+              height={20}
+              className="w-5 h-5 object-contain rounded shrink-0"
+            />
+            <span className="font-semibold tracking-wide">3DWorld Studio</span>
           </div>
 
           <button

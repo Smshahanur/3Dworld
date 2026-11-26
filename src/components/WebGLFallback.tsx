@@ -4,8 +4,16 @@ import { AlertTriangle, RefreshCw } from 'lucide-react';
 export const WebGLFallback: React.FC = () => {
   return (
     <div className="fixed inset-0 z-50 bg-[#060913] flex flex-col items-center justify-center p-6 text-center text-white">
-      <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 mb-6">
-        <AlertTriangle className="w-10 h-10" />
+      <img
+        src="/assets/branding/3dworld-logo-compact.png"
+        alt="3DWorld – Explore • Play • Live"
+        width={420}
+        height={280}
+        className="w-40 sm:w-48 h-auto object-contain mb-4 drop-shadow-[0_8px_24px_rgba(34,211,238,0.25)]"
+      />
+
+      <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-400 mb-4">
+        <AlertTriangle className="w-8 h-8" />
       </div>
 
       <h1 className="font-display font-bold text-2xl sm:text-3xl mb-3">

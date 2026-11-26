@@ -1,57 +1,45 @@
 import React from 'react';
-import { Compass, Volume2, VolumeX, Sun, Moon, Sunrise, Sunset, Info, Eye, Hammer, Users, User } from 'lucide-react';
-import { LightingMode } from '../types';
+import { Eye, Hammer, Users, User, Settings } from 'lucide-react';
 
 interface NavbarProps {
   onHomeClick: () => void;
-  onExploreClick: () => void;
-  onDiscoverClick: () => void;
-  onAboutClick: () => void;
-  onCreatorClick?: () => void;
   isBuildMode?: boolean;
   onToggleBuildMode?: () => void;
   isMultiplayerActive?: boolean;
   onToggleMultiplayer?: () => void;
   onOpenAvatarCustomizer?: () => void;
   multiplayerPlayerCount?: number;
-  lightingMode: LightingMode;
-  onCycleLighting: () => void;
-  soundEnabled: boolean;
-  onToggleSound: () => void;
   cinemaMode: boolean;
   onToggleCinema: () => void;
-  hoveredLandmark: string | null;
-  formattedTime?: string;
+  isSettingsOpen?: boolean;
+  onToggleSettings: () => void;
+  hoveredLandmark?: string | null;
+  isInWorld?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   onHomeClick,
-  onExploreClick,
-  onDiscoverClick,
-  onAboutClick,
-  onCreatorClick,
   isBuildMode = false,
   onToggleBuildMode,
   isMultiplayerActive = false,
   onToggleMultiplayer,
   onOpenAvatarCustomizer,
   multiplayerPlayerCount = 1,
-  lightingMode,
-  onCycleLighting,
-  soundEnabled,
-  onToggleSound,
   cinemaMode,
   onToggleCinema,
+  isSettingsOpen = false,
+  onToggleSettings,
   hoveredLandmark,
-  formattedTime,
+  isInWorld = false,
 }) => {
   if (cinemaMode) {
     return (
       <div className="fixed top-4 right-4 z-40">
         <button
+          type="button"
           onClick={onToggleCinema}
           aria-label="Exit Cinema Mode"
-          className="flex items-center gap-2 px-3 py-1.5 rounded-full glass-panel text-xs text-cyan-300 hover:text-white border border-cyan-500/30 hover:border-cyan-400 transition-all cursor-pointer shadow-lg"
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#071022]/85 backdrop-blur-md text-xs font-medium text-cyan-200 hover:text-white border border-white/15 hover:border-cyan-400/40 transition-colors cursor-pointer shadow-lg"
         >
           <Eye className="w-3.5 h-3.5" />
           <span>Exit Cinema</span>
@@ -60,216 +48,102 @@ export const Navbar: React.FC<NavbarProps> = ({
     );
   }
 
-  const getLightingIcon = () => {
-    switch (lightingMode) {
-      case 'dawn':
-        return <Sunrise className="w-4 h-4 text-rose-300" />;
-      case 'day':
-        return <Sun className="w-4 h-4 text-amber-300" />;
-      case 'twilight':
-        return <Sunset className="w-4 h-4 text-orange-400" />;
-      case 'cyber-night':
-      default:
-        return <Moon className="w-4 h-4 text-cyan-300" />;
-    }
-  };
-
-  const handleCreatorAction = () => {
-    if (onCreatorClick) {
-      onCreatorClick();
-    } else {
-      onAboutClick();
-    }
-  };
-
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 px-4 sm:px-8 py-3.5 flex items-center justify-between pointer-events-none transition-all duration-300">
-      {/* 3DWorld Logo */}
-      <div className="pointer-events-auto flex items-center gap-3">
+    <header className="fixed top-0 inset-x-0 z-40 px-2.5 sm:px-6 py-2 flex items-center justify-between gap-2 sm:gap-3 bg-[#060c1a]/75 backdrop-blur-md border-b border-white/[0.07]">
+      {/* Left: Compact Official 3DWorld Brand Logo */}
+      <div className="flex items-center gap-3 min-w-0 shrink-0">
         <button
+          type="button"
           onClick={onHomeClick}
-          className="group flex items-center gap-2.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 rounded-lg p-1"
+          className="group flex items-center gap-2.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 rounded-xl px-1 py-0.5 transition-opacity hover:opacity-90 cursor-pointer shrink-0 min-h-[40px]"
           aria-label="3DWorld Home"
+          title="3DWorld"
         >
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 via-indigo-500 to-purple-500 p-[1.5px] shadow-lg shadow-cyan-500/20 group-hover:shadow-cyan-400/30 transition-all duration-300">
-            <div className="w-full h-full bg-[#060913] rounded-[10px] flex items-center justify-center">
-              <span className="font-display font-bold text-sm bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">
-                3D
-              </span>
-            </div>
-          </div>
-          <div>
-            <div className="font-display font-extrabold text-lg sm:text-xl tracking-wider text-white group-hover:text-cyan-300 transition-colors">
-              3DWorld
-            </div>
-            <div className="text-[10px] tracking-widest text-slate-400 uppercase -mt-1 font-mono">
-              Virtual Universe
-            </div>
-          </div>
-        </button>
-
-        {hoveredLandmark && (
-          <div className="hidden lg:flex items-center gap-2 px-3 py-1 rounded-full glass-panel border border-cyan-500/30 text-xs text-cyan-300 font-mono">
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-            <span>Target: {hoveredLandmark}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Main Navigation links */}
-      <nav
-        aria-label="Primary Navigation"
-        className="pointer-events-auto hidden md:flex items-center gap-1 px-3 py-1.5 rounded-full glass-panel border border-white/10 shadow-xl"
-      >
-        <button
-          onClick={onHomeClick}
-          aria-label="Navigate to 3DWorld Home Overview"
-          className="px-4 py-1.5 rounded-full text-xs font-medium text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-        >
-          Home
-        </button>
-        <button
-          onClick={onExploreClick}
-          aria-label="Explore 3DWorld Modern Village (Cinematic Flyover)"
-          className="px-4 py-1.5 rounded-full text-xs font-medium text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-        >
-          Explore
-        </button>
-        {onToggleBuildMode && (
-          <button
-            onClick={onToggleBuildMode}
-            aria-label="Toggle Interactive Village Construction Build Mode"
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-              isBuildMode
-                ? 'bg-cyan-400 text-slate-950 shadow-md shadow-cyan-400/30 font-bold'
-                : 'text-amber-300 hover:text-amber-200 hover:bg-amber-950/40 border border-amber-400/30'
-            }`}
-          >
-            <Hammer className="w-3.5 h-3.5" />
-            <span>{isBuildMode ? 'Building' : 'Build Mode'}</span>
-          </button>
-        )}
-        {onToggleMultiplayer && (
-          <button
-            onClick={onToggleMultiplayer}
-            aria-label="Multiplayer Online Village World"
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-              isMultiplayerActive
-                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-400/30 font-bold'
-                : 'text-emerald-300 hover:text-emerald-200 hover:bg-emerald-950/40 border border-emerald-400/30'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span>{isMultiplayerActive ? `Online (${multiplayerPlayerCount})` : 'Multiplayer'}</span>
-          </button>
-        )}
-        {onOpenAvatarCustomizer && (
-          <button
-            onClick={onOpenAvatarCustomizer}
-            aria-label="Customize Human Character Avatar"
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold text-cyan-200 hover:text-white hover:bg-cyan-950/50 border border-cyan-400/30 transition-all cursor-pointer"
-          >
-            <User className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Avatar</span>
-          </button>
-        )}
-        <button
-          onClick={onDiscoverClick}
-          aria-label="Discover 3DWorld Districts and Buildings"
-          className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium text-cyan-300 hover:text-cyan-200 hover:bg-cyan-950/40 transition-colors cursor-pointer"
-        >
-          <Compass className="w-3.5 h-3.5" />
-          <span>Discover</span>
-        </button>
-        <button
-          onClick={onAboutClick}
-          aria-label="About 3DWorld Project and Architecture"
-          className="flex items-center gap-1 px-4 py-1.5 rounded-full text-xs font-medium text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-        >
-          <Info className="w-3.5 h-3.5" />
-          <span>About</span>
-        </button>
-      </nav>
-
-      {/* Quick controls: Creator pill, Build mode, Lighting, Sound, About */}
-      <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2">
-        {onToggleMultiplayer && (
-          <button
-            onClick={onToggleMultiplayer}
-            title={isMultiplayerActive ? 'Multiplayer Online' : 'Enter Multiplayer Village'}
-            aria-label="Toggle Multiplayer"
-            className={`md:hidden flex items-center gap-1 px-2.5 py-1.5 rounded-full glass-panel border transition-all cursor-pointer text-xs font-semibold ${
-              isMultiplayerActive
-                ? 'bg-emerald-400 text-slate-950 border-emerald-300 shadow-sm'
-                : 'border-emerald-400/40 text-emerald-300 hover:text-white'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span>{isMultiplayerActive ? `${multiplayerPlayerCount}` : 'Online'}</span>
-          </button>
-        )}
-        {onOpenAvatarCustomizer && (
-          <button
-            onClick={onOpenAvatarCustomizer}
-            title="Customize Human Avatar"
-            aria-label="Customize Human Avatar"
-            className="md:hidden flex items-center gap-1 px-2.5 py-1.5 rounded-full glass-panel border border-cyan-400/40 text-cyan-200 hover:text-white transition-all cursor-pointer text-xs font-semibold"
-          >
-            <User className="w-3.5 h-3.5" />
-            <span>Avatar</span>
-          </button>
-        )}
-        {onToggleBuildMode && (
-          <button
-            onClick={onToggleBuildMode}
-            title={isBuildMode ? 'Exit Build Mode' : 'Enter Village Construction Build Mode'}
-            aria-label="Toggle Build Mode"
-            className={`md:hidden flex items-center gap-1 px-2.5 py-1.5 rounded-full glass-panel border transition-all cursor-pointer text-xs font-semibold ${
-              isBuildMode
-                ? 'bg-cyan-400 text-slate-950 border-cyan-300 shadow-sm'
-                : 'border-amber-400/40 text-amber-300 hover:text-white'
-            }`}
-          >
-            <Hammer className="w-3.5 h-3.5" />
-            <span>{isBuildMode ? 'Exit' : 'Build'}</span>
-          </button>
-        )}
-
-        {/* Lighting preset cycle button */}
-        <button
-          onClick={onCycleLighting}
-          title={`Atmosphere: ${lightingMode.toUpperCase()} (Click to cycle)`}
-          aria-label={`Current atmosphere: ${lightingMode}. Click to cycle.`}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full glass-panel border border-white/10 text-xs text-slate-300 hover:text-white hover:border-cyan-400/40 transition-all cursor-pointer"
-        >
-          {getLightingIcon()}
-          <span className="hidden sm:inline capitalize text-[11px] font-mono">
-            {formattedTime || lightingMode}
+          <img
+            src="/assets/branding/3dworld-logo-nav.png"
+            alt="3DWorld"
+            width={240}
+            height={160}
+            decoding="async"
+            className="h-8 sm:h-9 w-auto object-contain shrink-0"
+          />
+          <span className="hidden sm:inline font-display font-bold text-base tracking-tight text-white whitespace-nowrap">
+            3DWorld
           </span>
         </button>
 
-        {/* Ambient Sound synth toggle */}
+        {isInWorld && hoveredLandmark && (
+          <span className="hidden lg:inline-block text-xs text-cyan-300/90 font-medium truncate max-w-[200px]">
+            {hoveredLandmark}
+          </span>
+        )}
+      </div>
+
+      {/* Right: Slim Essential Controls (Online, Avatar, Build, Settings) */}
+      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+        {onToggleMultiplayer && (
+          <button
+            type="button"
+            onClick={onToggleMultiplayer}
+            aria-label={isMultiplayerActive ? `Multiplayer Online (${multiplayerPlayerCount})` : 'Open Online Multiplayer'}
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-xl border text-xs font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 min-h-[40px] ${
+              isMultiplayerActive
+                ? 'bg-cyan-500/20 border-cyan-400/50 text-cyan-200'
+                : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-slate-200 hover:text-white'
+            }`}
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                isMultiplayerActive ? 'bg-emerald-400' : 'bg-cyan-400/80'
+              }`}
+              aria-hidden="true"
+            />
+            <Users className="w-3.5 h-3.5 hidden sm:inline shrink-0 text-cyan-300" />
+            <span>{isMultiplayerActive ? `Online (${multiplayerPlayerCount})` : 'Online'}</span>
+          </button>
+        )}
+
+        {onOpenAvatarCustomizer && (
+          <button
+            type="button"
+            onClick={onOpenAvatarCustomizer}
+            aria-label="Open Avatar Studio"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-xs font-medium text-slate-200 hover:text-white transition-colors cursor-pointer whitespace-nowrap shrink-0 min-h-[40px]"
+          >
+            <User className="w-3.5 h-3.5 hidden min-[400px]:inline text-cyan-300 shrink-0" />
+            <span>Avatar</span>
+          </button>
+        )}
+
+        {onToggleBuildMode && (
+          <button
+            type="button"
+            onClick={onToggleBuildMode}
+            aria-label={isBuildMode ? 'Exit Build Mode' : 'Open Build Mode'}
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-xl border text-xs font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 min-h-[40px] ${
+              isBuildMode
+                ? 'bg-amber-400/20 border-amber-300/60 text-amber-200'
+                : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-amber-200/90 hover:text-amber-100'
+            }`}
+          >
+            <Hammer className="w-3.5 h-3.5 hidden min-[400px]:inline text-amber-300 shrink-0" />
+            <span>{isBuildMode ? 'Exit Build' : 'Build'}</span>
+          </button>
+        )}
+
         <button
-          onClick={onToggleSound}
-          title={soundEnabled ? 'Mute Ambient Soundscape' : 'Enable Ambient Soundscape'}
-          aria-label={soundEnabled ? 'Mute ambient soundscape' : 'Enable ambient soundscape'}
-          className={`p-2 rounded-full glass-panel border transition-all cursor-pointer ${
-            soundEnabled
-              ? 'border-cyan-500/40 text-cyan-300 bg-cyan-950/30 shadow-sm shadow-cyan-500/20'
-              : 'border-white/10 text-slate-400 hover:text-slate-200'
+          type="button"
+          onClick={onToggleSettings}
+          aria-label="Open World Settings"
+          aria-expanded={isSettingsOpen}
+          title="Settings"
+          className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-colors cursor-pointer shrink-0 ${
+            isSettingsOpen
+              ? 'bg-cyan-500/20 border-cyan-400/50 text-cyan-200'
+              : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-slate-300 hover:text-white'
           }`}
         >
-          {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-        </button>
-
-        {/* About button */}
-        <button
-          onClick={onAboutClick}
-          aria-label="About 3DWorld"
-          title="About 3DWorld"
-          className="p-2 rounded-full glass-panel border border-white/10 text-slate-300 hover:text-white cursor-pointer"
-        >
-          <Info className="w-4 h-4" />
+          <Settings className="w-4 h-4" />
         </button>
       </div>
     </header>

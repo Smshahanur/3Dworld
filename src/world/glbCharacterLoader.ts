@@ -113,6 +113,8 @@ interface CachedTemplate {
   animations: THREE.AnimationClip[];
   boundsHeight: number;
   boundsMinY: number;
+  boundsCenterX: number;
+  boundsCenterZ: number;
   format: 'glb' | 'gltf' | 'fbx';
   hasSkeleton: boolean;
   boneCount: number;
@@ -231,8 +233,11 @@ class CharacterAssetManager {
     { url: string; source: 'public' | 'bundled' | 'custom_file'; label: string }
   >();
   private loadErrors = new Map<CharacterModelRole, CharacterLoadError>();
+  private failedUrls = new Set<string>();
   private modelInspections = new Map<CharacterModelRole, ModelInspectionReport>();
+  private roleVersions = new Map<CharacterModelRole, number>();
   private listeners = new Set<() => void>();
+  private errorListeners = new Set<() => void>();
   private hasLoggedMissingNotice = false;
 
   constructor() {
@@ -309,6 +314,7 @@ class CharacterAssetManager {
         return;
       }
 
+      let discoveredAnyModel = false;
       try {
         const res = await fetch('/models/characters/manifest.json', { cache: 'no-cache' });
         if (res.ok) {
@@ -326,8 +332,12 @@ class CharacterAssetManager {
                 const existing = this.roleUrlMap.get(role);
                 if (!existing || existing.source !== 'custom_file') {
                   const fileLabel = url.split('/').pop() || url;
+                  if (!existing || existing.url !== url) {
+                    discoveredAnyModel = true;
+                  }
                   this.roleUrlMap.set(role, { url, source: 'public', label: fileLabel });
                   this.loadErrors.delete(role);
+                  this.failedUrls.delete(url);
                 }
               }
             }
@@ -338,7 +348,15 @@ class CharacterAssetManager {
       } finally {
         this.manifestLoaded = true;
         this.reportMissingAssetsOnce();
-        this.notifyListeners();
+        // Warm up the cached template once when the permanent player_male GLB is present on disk
+        const maleAsset = this.roleUrlMap.get('player_male');
+        if (maleAsset && maleAsset.source === 'public' && !this.templateCache.has(maleAsset.url)) {
+          void this.loadTemplate(maleAsset.url, maleAsset.label, 'player_male');
+        }
+        if (discoveredAnyModel) {
+          this.notifyListeners();
+        }
+        this.notifyErrorListeners();
       }
     })();
 
@@ -349,11 +367,224 @@ class CharacterAssetManager {
     if (this.hasLoggedMissingNotice) return;
     this.hasLoggedMissingNotice = true;
     if (!this.roleUrlMap.has('player_male') && typeof console !== 'undefined') {
-      console.error(
-        '[3DWorld CharacterAssets] Missing supplied male player model at public/models/characters/Athletic_man.glb (or Athletic_man.fbx). ' +
-          'Old procedural male mannequin fallback is disabled — place Athletic_man.glb in /public/models/characters/ or load a local .glb/.fbx file via Avatar Studio.'
+      console.warn(
+        '[3DWorld CharacterAssets] Supplied male player model not found at public/models/characters/Athletic_man.glb (or Athletic_man.fbx). ' +
+          'Using safe fallback character — place Athletic_man.glb in /public/models/characters/ or load a local .glb/.fbx file via Avatar Studio.'
       );
     }
+  }
+
+  public getRoleVersion(role: CharacterModelRole): number {
+    const direct = this.roleVersions.get(role) || 0;
+    if (role.endsWith('_male')) {
+      return Math.max(direct, this.roleVersions.get('player_male') || 0);
+    }
+    if (role.endsWith('_female')) {
+      return Math.max(direct, this.roleVersions.get('player_female') || 0);
+    }
+    return direct;
+  }
+
+  private bumpRoleVersion(role: CharacterModelRole) {
+    this.roleVersions.set(role, (this.roleVersions.get(role) || 0) + 1);
+  }
+
+  /**
+   * Registers a permanent static public asset URL (e.g., /models/characters/Athletic_man.glb)
+   * and clears any prior temporary blob URL or negative cache entries so all rigs switch to it.
+   */
+  public registerPublicModel(role: CharacterModelRole, publicUrl: string, fileName: string) {
+    const prev = this.roleUrlMap.get(role);
+    if (prev) {
+      this.templateCache.delete(prev.url);
+      this.inFlightLoads.delete(prev.url);
+      if (prev.source === 'custom_file' && prev.url.startsWith('blob:')) {
+        try {
+          URL.revokeObjectURL(prev.url);
+        } catch {}
+      }
+    }
+    this.templateCache.delete(publicUrl);
+    this.inFlightLoads.delete(publicUrl);
+    this.failedUrls.delete(publicUrl);
+    this.loadErrors.delete(role);
+    if (role === 'player_male') {
+      this.loadErrors.delete('npc_rural_male');
+      this.loadErrors.delete('npc_modern_male');
+      this.loadErrors.delete('npc_capital_male');
+    }
+    this.roleUrlMap.set(role, {
+      url: publicUrl,
+      source: 'public',
+      label: fileName,
+    });
+    this.bumpRoleVersion(role);
+    this.notifyListeners();
+    this.notifyErrorListeners();
+  }
+
+  /**
+   * Saves a selected .glb / .gltf / .fbx file permanently to /public/models/characters/ via the
+   * Vite dev server endpoint when available (so it persists across full page refreshes and builds
+   * into dist/), verifying exact binary bytes and live HTTP serving before reporting success.
+   */
+  public async saveAndRegisterPermanentModel(
+    role: CharacterModelRole,
+    file: File
+  ): Promise<{
+    ok: boolean;
+    status: 'success' | 'warning' | 'error';
+    savedToProject: boolean;
+    url?: string;
+    fileName: string;
+    diskPath?: string;
+    bytes?: number;
+    message: string;
+  }> {
+    if (!file || file.size === 0) {
+      return {
+        ok: false,
+        status: 'error',
+        savedToProject: false,
+        fileName: file?.name || 'unknown',
+        message: 'Selected file is empty (0 bytes). Please select a valid .glb, .gltf, or .fbx 3D model.',
+      };
+    }
+
+    let buffer: ArrayBuffer;
+    try {
+      buffer = await file.arrayBuffer();
+    } catch (err) {
+      return {
+        ok: false,
+        status: 'error',
+        savedToProject: false,
+        fileName: file.name,
+        message: `Failed to read selected file as binary: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+
+    if (buffer.byteLength === 0 || buffer.byteLength !== file.size) {
+      return {
+        ok: false,
+        status: 'error',
+        savedToProject: false,
+        fileName: file.name,
+        message: `Binary read mismatch for ${file.name} (read ${buffer.byteLength} of ${file.size} bytes).`,
+      };
+    }
+
+    const clientDetected = this.detectFormatFromBytes(buffer, file.name);
+    if (clientDetected === 'html_or_unknown') {
+      return {
+        ok: false,
+        status: 'error',
+        savedToProject: false,
+        fileName: file.name,
+        message: `Invalid 3D model file "${file.name}". Expected a valid binary .glb ("glTF" header), .gltf JSON, or .fbx file.`,
+      };
+    }
+
+    if (typeof window !== 'undefined' && typeof fetch === 'function') {
+      try {
+        const endpoint = `/api/dev/save-character-model?role=${encodeURIComponent(role)}&filename=${encodeURIComponent(file.name)}`;
+        const payload = new Uint8Array(buffer);
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/octet-stream',
+            'X-Expected-Bytes': String(payload.byteLength),
+          },
+          body: payload,
+        });
+        const contentType = (res.headers.get('content-type') || '').toLowerCase();
+
+        // If the server endpoint responded with JSON, handle both success and explicit validation errors
+        if (contentType.includes('application/json')) {
+          const data = (await res.json()) as {
+            ok?: boolean;
+            permanent?: boolean;
+            verified?: boolean;
+            url?: string;
+            fileName?: string;
+            diskPath?: string;
+            bytes?: number;
+            magic?: string;
+            glbVersion?: number;
+            error?: string;
+          };
+
+          if (!res.ok || !data.ok) {
+            return {
+              ok: false,
+              status: 'error',
+              savedToProject: false,
+              fileName: file.name,
+              message: data.error || `Permanent save failed with HTTP ${res.status}.`,
+            };
+          }
+
+          if (data.url && data.fileName) {
+            // Verify GET returns the actual binary (not index.html) before marking permanent success
+            const verifyRes = await fetch(data.url, { method: 'GET', cache: 'no-store' });
+            const verifyType = (verifyRes.headers.get('content-type') || '').toLowerCase();
+            if (!verifyRes.ok || verifyType.includes('text/html')) {
+              return {
+                ok: false,
+                status: 'error',
+                savedToProject: false,
+                fileName: data.fileName,
+                message: `File was saved to ${data.diskPath || data.url}, but GET ${data.url} returned HTTP ${verifyRes.status} (${verifyType || 'unknown'}).`,
+              };
+            }
+            const verifyBuf = await verifyRes.arrayBuffer();
+            const verifyFormat = this.detectFormatFromBytes(verifyBuf, data.fileName);
+            if (verifyFormat === 'html_or_unknown' || verifyBuf.byteLength !== payload.byteLength) {
+              return {
+                ok: false,
+                status: 'error',
+                savedToProject: false,
+                fileName: data.fileName,
+                message: `Verification failed on GET ${data.url}: expected ${payload.byteLength} valid model bytes, received ${verifyBuf.byteLength} bytes.`,
+              };
+            }
+
+            await this.initManifest(true);
+            this.registerPublicModel(role, data.url, data.fileName);
+            const mb = (verifyBuf.byteLength / (1024 * 1024)).toFixed(2);
+            const headerNote =
+              data.magic === 'glTF' && data.glbVersion
+                ? ` Verified GLB v${data.glbVersion} ("glTF", ${mb} MB).`
+                : ` Verified (${mb} MB).`;
+            return {
+              ok: true,
+              status: 'success',
+              savedToProject: true,
+              url: data.url,
+              fileName: data.fileName,
+              diskPath: data.diskPath || `public/models/characters/${data.fileName}`,
+              bytes: verifyBuf.byteLength,
+              message: `Installed permanently at ${data.diskPath || `public/models/characters/${data.fileName}`}.${headerNote} Persists across full page refresh and production builds.`,
+            };
+          }
+        }
+      } catch {
+        // Static production host without dev write endpoint — fall through to session preview
+      }
+    }
+
+    const blobUrl = URL.createObjectURL(file);
+    this.registerCustomBlobModel(role, blobUrl, file.name);
+    return {
+      ok: true,
+      status: 'warning',
+      savedToProject: false,
+      url: blobUrl,
+      fileName: file.name,
+      bytes: buffer.byteLength,
+      message:
+        'Loaded for this browser session only (permanent disk write endpoint unavailable on read-only hosting). Place the file at public/models/characters/Athletic_man.glb and rebuild for permanent hosting.',
+    };
   }
 
   /**
@@ -365,12 +596,15 @@ class CharacterAssetManager {
       this.templateCache.delete(prev.url);
     }
     this.loadErrors.delete(role);
+    this.failedUrls.delete(blobUrl);
     this.roleUrlMap.set(role, {
       url: blobUrl,
       source: 'custom_file',
       label: fileName,
     });
+    this.bumpRoleVersion(role);
     this.notifyListeners();
+    this.notifyErrorListeners();
   }
 
   public clearCustomBlobModel(role: CharacterModelRole) {
@@ -459,31 +693,43 @@ class CharacterAssetManager {
     return () => this.listeners.delete(cb);
   }
 
+  public onErrorsUpdated(cb: () => void): () => void {
+    this.errorListeners.add(cb);
+    return () => this.errorListeners.delete(cb);
+  }
+
   private notifyListeners() {
     for (const cb of this.listeners) cb();
   }
 
-  private detectFormatFromBytes(buffer: ArrayBuffer, nameHint: string): 'glb' | 'gltf' | 'fbx' | 'html_or_unknown' {
+  private notifyErrorListeners() {
+    for (const cb of this.errorListeners) cb();
+  }
+
+  private detectFormatFromBytes(buffer: ArrayBuffer, _nameHint: string): 'glb' | 'gltf' | 'fbx' | 'html_or_unknown' {
     const view = new Uint8Array(buffer);
-    // GLB binary magic: "glTF" (0x67 0x6C 0x54 0x46)
-    if (view.length >= 4 && view[0] === 0x67 && view[1] === 0x6c && view[2] === 0x54 && view[3] === 0x46) {
-      return 'glb';
+    if (view.length < 4) return 'html_or_unknown';
+    // Strict GLB binary magic: "glTF" (0x67 0x6C 0x54 0x46) + version/length check
+    if (view[0] === 0x67 && view[1] === 0x6c && view[2] === 0x54 && view[3] === 0x46) {
+      if (view.length < 20) return 'html_or_unknown';
+      const dv = new DataView(buffer);
+      const version = dv.getUint32(4, true);
+      const declaredLength = dv.getUint32(8, true);
+      if ((version === 1 || version === 2) && declaredLength === view.length) {
+        return 'glb';
+      }
+      return 'html_or_unknown';
     }
-    const headStr = new TextDecoder('utf-8', { fatal: false }).decode(view.slice(0, 64)).trimStart();
+    const headStr = new TextDecoder('utf-8', { fatal: false }).decode(view.slice(0, 128)).trimStart();
     if (headStr.startsWith('<') || headStr.toLowerCase().includes('<!doctype')) {
       return 'html_or_unknown';
     }
-    if (headStr.startsWith('Kaydara FBX Binary') || headStr.startsWith('; FBX') || /\.fbx$/i.test(nameHint)) {
-      if (headStr.startsWith('Kaydara FBX') || headStr.startsWith('; FBX') || headStr.includes('FBXHeaderExtension')) {
-        return 'fbx';
-      }
+    if (headStr.startsWith('Kaydara FBX Binary') || headStr.startsWith('; FBX') || headStr.includes('FBXHeaderExtension')) {
+      return 'fbx';
     }
     if (headStr.startsWith('{') && headStr.includes('"asset"')) {
       return 'gltf';
     }
-    if (/\.fbx$/i.test(nameHint)) return 'fbx';
-    if (/\.gltf$/i.test(nameHint)) return 'gltf';
-    if (/\.glb$/i.test(nameHint)) return 'glb';
     return 'html_or_unknown';
   }
 
@@ -525,7 +771,8 @@ class CharacterAssetManager {
       const mesh = child as THREE.Mesh;
       if (!mesh.isMesh) return;
       meshCount++;
-      mesh.frustumCulled = true;
+      // Keep animated SkinnedMesh visible across all bone poses to avoid frustum-cull popping
+      mesh.frustumCulled = !skinned.isSkinnedMesh;
 
       const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       for (const mat of mats) {
@@ -569,7 +816,7 @@ class CharacterAssetManager {
 
     const promise = (async (): Promise<{ template: CachedTemplate | null; error?: CharacterLoadError }> => {
       try {
-        const res = await fetch(url);
+        const res = await fetch(url, { cache: 'no-cache' });
         if (!res.ok) {
           const err: CharacterLoadError = {
             role,
@@ -641,7 +888,9 @@ class CharacterAssetManager {
         scene.updateMatrixWorld(true);
         const bbox = new THREE.Box3().setFromObject(scene);
         const size = new THREE.Vector3();
+        const center = new THREE.Vector3();
         bbox.getSize(size);
+        bbox.getCenter(center);
         const boundsHeight = Math.max(0.1, size.y);
 
         const stats = this.optimizeTexturesForAndroid(scene);
@@ -670,6 +919,8 @@ class CharacterAssetManager {
           animations,
           boundsHeight,
           boundsMinY: Number.isFinite(bbox.min.y) ? bbox.min.y : 0,
+          boundsCenterX: Number.isFinite(center.x) ? center.x : 0,
+          boundsCenterZ: Number.isFinite(center.z) ? center.z : 0,
           format: detectedFormat,
           hasSkeleton: stats.hasSkeleton,
           boneCount: stats.boneCount,
@@ -688,7 +939,7 @@ class CharacterAssetManager {
           message: `Failed to parse ${label} (${url}): ${err instanceof Error ? err.message : String(err)}`,
           timestamp: Date.now(),
         };
-        console.error(`[3DWorld CharacterAssets] ${errorObj.message}`);
+        console.warn(`[3DWorld CharacterAssets] ${errorObj.message}`);
         return { template: null, error: errorObj };
       } finally {
         this.inFlightLoads.delete(url);
@@ -708,35 +959,63 @@ class CharacterAssetManager {
     customization: GLBCharacterCustomization = {}
   ): Promise<GLBCharacterInstance | null> {
     await this.initManifest();
-    const resolved = this.resolveUrlForRole(role);
+    let resolved = this.resolveUrlForRole(role);
 
     if (!resolved) {
-      if (role === 'player_male') {
-        const expectedFile = `public/models/characters/${this.manifestSpecs.player_male?.file || 'Athletic_man.glb'}`;
-        this.loadErrors.set('player_male', {
-          role: 'player_male',
-          expectedFile,
-          attemptedUrl: '/models/characters/Athletic_man.glb',
-          reason: 'missing_file',
-          message:
-            'Supplied Athletic Man model not found at public/models/characters/Athletic_man.glb (or Athletic_man.fbx). Place the file in /public/models/characters/ or select a local .glb/.fbx file in Avatar Studio.',
-          timestamp: Date.now(),
-        });
-        this.notifyListeners();
+      if ((role === 'player_male' || role.endsWith('_male')) && typeof window !== 'undefined' && typeof fetch === 'function') {
+        const directUrl = '/models/characters/Athletic_man.glb';
+        if (!this.failedUrls.has(directUrl)) {
+          resolved = { url: directUrl, label: 'Athletic_man.glb' };
+        }
       }
+
+      if (!resolved) {
+        if (role === 'player_male' && !this.loadErrors.has('player_male')) {
+          const expectedFile = `public/models/characters/${this.manifestSpecs.player_male?.file || 'Athletic_man.glb'}`;
+          this.loadErrors.set('player_male', {
+            role: 'player_male',
+            expectedFile,
+            attemptedUrl: '/models/characters/Athletic_man.glb',
+            reason: 'missing_file',
+            message:
+              'Supplied Athletic Man model not found at /models/characters/Athletic_man.glb. Using safe fallback character until the GLB asset is supplied.',
+            timestamp: Date.now(),
+          });
+          this.notifyErrorListeners();
+        }
+        return null;
+      }
+    }
+
+    if (this.failedUrls.has(resolved.url)) {
       return null;
     }
 
     const { template, error } = await this.loadTemplate(resolved.url, resolved.label, role);
     if (!template) {
+      this.failedUrls.add(resolved.url);
       if (error) {
         this.loadErrors.set(role, error);
-        this.notifyListeners();
+        if (role === 'player_male' || resolved.url === '/models/characters/Athletic_man.glb') {
+          this.loadErrors.set('player_male', error);
+        }
+        this.notifyErrorListeners();
       }
       return null;
     }
 
-    this.loadErrors.delete(role);
+    // Register successful direct load in roleUrlMap so subsequent instances skip probing
+    if (!this.roleUrlMap.has(role) && resolved.url === '/models/characters/Athletic_man.glb') {
+      this.roleUrlMap.set('player_male', { url: resolved.url, source: 'public', label: resolved.label });
+    }
+
+    this.failedUrls.delete(resolved.url);
+    const hadError =
+      this.loadErrors.delete(role) ||
+      (resolved.url === '/models/characters/Athletic_man.glb' && this.loadErrors.delete('player_male'));
+    if (hadError) {
+      this.notifyErrorListeners();
+    }
 
     // Clone with SkeletonUtils so SkinnedMesh skeletons remain 100% independent per player/avatar
     const clonedModel = SkeletonUtils.clone(template.scene) as THREE.Group;
@@ -749,7 +1028,11 @@ class CharacterAssetManager {
     const scaleFactor = targetHeight / template.boundsHeight;
 
     clonedModel.scale.setScalar(scaleFactor);
-    clonedModel.position.y = -template.boundsMinY * scaleFactor;
+    clonedModel.position.set(
+      -template.boundsCenterX * scaleFactor,
+      -template.boundsMinY * scaleFactor,
+      -template.boundsCenterZ * scaleFactor
+    );
     root.add(clonedModel);
 
     // Clone materials per instance only if customization tints will be applied;

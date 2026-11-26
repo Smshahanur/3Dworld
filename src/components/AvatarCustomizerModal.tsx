@@ -104,6 +104,9 @@ export const AvatarCustomizerModal: React.FC<AvatarCustomizerModalProps> = ({
     initialConfig.gender === 'female' ? 'player_female' : 'player_male'
   );
   const [showMissingList, setShowMissingList] = useState(false);
+  const [previewWebGLError, setPreviewWebGLError] = useState(false);
+  const [isSavingModel, setIsSavingModel] = useState(false);
+  const [saveNotice, setSaveNotice] = useState<{ status: 'success' | 'warning' | 'error'; text: string } | null>(null);
 
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -140,7 +143,13 @@ export const AvatarCustomizerModal: React.FC<AvatarCustomizerModalProps> = ({
     const unsub = characterAssetManager.onModelsUpdated(() => {
       setAssetStatus(characterAssetManager.getAssetStatus());
     });
-    return () => unsub();
+    const unsubErr = characterAssetManager.onErrorsUpdated(() => {
+      setAssetStatus(characterAssetManager.getAssetStatus());
+    });
+    return () => {
+      unsub();
+      unsubErr();
+    };
   }, [isOpen]);
 
   // Keep uploadRole synced with selected gender if on player role
@@ -190,6 +199,7 @@ export const AvatarCustomizerModal: React.FC<AvatarCustomizerModalProps> = ({
       isSoftwareGl = true;
     }
 
+    setPreviewWebGLError(false);
     try {
       renderer = new THREE.WebGLRenderer({
         antialias: !isSoftwareGl,
@@ -197,6 +207,7 @@ export const AvatarCustomizerModal: React.FC<AvatarCustomizerModalProps> = ({
         powerPreference: 'high-performance',
       });
     } catch {
+      setPreviewWebGLError(true);
       return;
     }
 
@@ -213,12 +224,16 @@ export const AvatarCustomizerModal: React.FC<AvatarCustomizerModalProps> = ({
     camera.position.set(0, 1.38, 3.65);
     camera.lookAt(0, 0.92, 0);
 
-    // Lighting
-    pmremGen = new THREE.PMREMGenerator(renderer);
-    const roomEnv = new RoomEnvironment();
-    envRT = pmremGen.fromScene(roomEnv, 0.04);
-    scene.environment = envRT.texture;
-    roomEnv.dispose();
+    // Lighting (guard PMREMGenerator for software/restricted WebGL)
+    try {
+      pmremGen = new THREE.PMREMGenerator(renderer);
+      const roomEnv = new RoomEnvironment();
+      envRT = pmremGen.fromScene(roomEnv, 0.04);
+      scene.environment = envRT.texture;
+      roomEnv.dispose();
+    } catch {
+      // Fallback to direct hemisphere + directional lights below
+    }
 
     const hemi = new THREE.HemisphereLight(0xe0f2fe, 0x1e293b, 0.85);
     scene.add(hemi);
@@ -273,10 +288,18 @@ export const AvatarCustomizerModal: React.FC<AvatarCustomizerModalProps> = ({
     const hairVal = (HAIR_COLORS as Record<string, number>)[hairColor] ?? HAIR_COLORS.darkBrown;
     const eyeVal = (EYE_COLORS as Record<string, number>)[eyeColor] ?? EYE_COLORS.brown;
 
+    const syncRigInspection = () => {
+      if (rigRef.current !== rig) return;
+      setRigMode(rig.getRigMode());
+      setLoadedClips(rig.getLoadedClipNames());
+      setLoadError(rig.getLoadError());
+      setInspectionReport(rig.getModelInspection());
+    };
+
     const rig = createHumanoidCharacter({
       gender,
       roleKey: gender === 'female' ? 'player_female' : 'player_male',
-      strictAssetRequired: gender === 'male',
+      strictAssetRequired: false,
       hairStyle: hairStyle as HumanHairStyle,
       outfitType,
       primaryColor: primaryHex,
@@ -287,17 +310,10 @@ export const AvatarCustomizerModal: React.FC<AvatarCustomizerModalProps> = ({
       pantsColor: 0x1e293b,
       shoesColor: 0x0f172a,
       castShadow: !isSoftwareGl,
+      onAssetStateChange: syncRigInspection,
     });
     rigRef.current = rig;
     avatarAnchor.add(rig.root);
-
-    const syncRigInspection = () => {
-      if (rigRef.current !== rig) return;
-      setRigMode(rig.getRigMode());
-      setLoadedClips(rig.getLoadedClipNames());
-      setLoadError(rig.getLoadError());
-      setInspectionReport(rig.getModelInspection());
-    };
 
     syncRigInspection();
     if (rig.hotSwapPromise) {
@@ -306,10 +322,8 @@ export const AvatarCustomizerModal: React.FC<AvatarCustomizerModalProps> = ({
       });
     }
 
-    const unsubPreviewUpdates = characterAssetManager.onModelsUpdated(() => {
-      setTimeout(() => {
-        syncRigInspection();
-      }, 150);
+    const unsubPreviewUpdates = characterAssetManager.onErrorsUpdated(() => {
+      syncRigInspection();
     });
 
     // Pointer resize handling
@@ -389,12 +403,23 @@ export const AvatarCustomizerModal: React.FC<AvatarCustomizerModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    characterAssetManager.registerCustomBlobModel(uploadRole, url, file.name);
     e.target.value = '';
+    if (!file) return;
+    setIsSavingModel(true);
+    setSaveNotice(null);
+    try {
+      const result = await characterAssetManager.saveAndRegisterPermanentModel(uploadRole, file);
+      setSaveNotice({ status: result.status, text: result.message });
+    } catch (err) {
+      setSaveNotice({
+        status: 'error',
+        text: err instanceof Error ? err.message : 'Unexpected error while installing character model.',
+      });
+    } finally {
+      setIsSavingModel(false);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -421,14 +446,21 @@ export const AvatarCustomizerModal: React.FC<AvatarCustomizerModalProps> = ({
     >
       <div className="relative w-full max-w-4xl bg-[#080d1a] border border-cyan-500/30 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
-        <div className="px-5 py-3.5 border-b border-white/10 bg-gradient-to-r from-cyan-950/40 via-slate-900 to-indigo-950/40 flex items-center justify-between shrink-0">
+        <div className="px-5 py-3.5 border-b border-white/10 bg-gradient-to-r from-cyan-950/40 via-[#08142b] to-blue-950/40 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300">
-              <User className="w-5 h-5" />
-            </div>
+            <img
+              src="/assets/branding/3dworld-logo-icon.png"
+              alt="3DWorld"
+              width={40}
+              height={40}
+              className="w-10 h-10 rounded-xl object-contain bg-[#08142b]/90 border border-cyan-400/35 p-0.5 shadow-sm shadow-cyan-500/20 shrink-0"
+            />
             <div>
-              <h2 id="avatar-customizer-title" className="text-base font-bold text-white tracking-wide">
-                Human Character & Avatar Studio
+              <h2 id="avatar-customizer-title" className="text-base font-bold text-white tracking-wide flex items-center gap-2">
+                <span>3DWorld Avatar Studio</span>
+                <span className="hidden sm:inline-block text-[10px] font-mono uppercase tracking-wider text-amber-300/90 font-semibold">
+                  • Explore • Play • Live
+                </span>
               </h2>
               <p className="text-xs text-slate-400">
                 Customize appearance, test skeletal animations, or preview local GLB/GLTF models
@@ -515,15 +547,17 @@ export const AvatarCustomizerModal: React.FC<AvatarCustomizerModalProps> = ({
               }}
               className="relative w-full h-72 sm:h-80 rounded-xl bg-[radial-gradient(circle_at_50%_35%,rgba(14,116,144,0.22),rgba(6,9,19,0.92))] border border-white/10 overflow-hidden cursor-grab active:cursor-grabbing touch-none"
             >
-              {rigMode === 'error' && (
+              {(previewWebGLError || rigMode === 'error') && (
                 <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-4 text-center bg-slate-950/85">
                   <AlertTriangle className="w-8 h-8 text-rose-400 mb-2" />
                   <p className="text-xs font-bold text-rose-200 mb-1">
-                    Male Character Model Failed to Load
+                    {previewWebGLError ? '3D Preview WebGL Unavailable' : 'Male Character Model Failed to Load'}
                   </p>
                   <p className="text-[11px] text-slate-300 leading-relaxed max-w-[260px]">
-                    {loadError?.message ||
-                      'public/models/characters/Athletic_man.glb was not found. Old procedural mannequin fallback is disabled.'}
+                    {previewWebGLError
+                      ? 'Could not initialize WebGL preview context. You can still customize your avatar and apply changes.'
+                      : loadError?.message ||
+                        'public/models/characters/Athletic_man.glb was not found. Using safe fallback character until the GLB/FBX file is supplied.'}
                   </p>
                 </div>
               )}
@@ -826,13 +860,28 @@ export const AvatarCustomizerModal: React.FC<AvatarCustomizerModalProps> = ({
                 />
                 <button
                   type="button"
+                  disabled={isSavingModel}
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/40 text-xs font-semibold text-cyan-200 transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 disabled:opacity-60 border border-cyan-400/40 text-xs font-semibold text-cyan-200 transition-colors cursor-pointer"
                 >
                   <Upload className="w-3.5 h-3.5" />
-                  Load Local .GLB / .FBX
+                  {isSavingModel ? 'Saving Permanent Asset...' : 'Install Permanent .GLB / .FBX'}
                 </button>
               </div>
+              {saveNotice && (
+                <div
+                  role={saveNotice.status === 'error' ? 'alert' : 'status'}
+                  className={`mt-1 px-2.5 py-2 rounded-lg border text-[11px] leading-snug ${
+                    saveNotice.status === 'success'
+                      ? 'bg-emerald-950/50 border-emerald-500/40 text-emerald-200'
+                      : saveNotice.status === 'error'
+                      ? 'bg-rose-950/60 border-rose-500/50 text-rose-200'
+                      : 'bg-amber-950/50 border-amber-500/40 text-amber-200'
+                  }`}
+                >
+                  {saveNotice.text}
+                </div>
+              )}
             </div>
 
             {/* Footer Submit Actions */}

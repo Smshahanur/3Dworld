@@ -45,6 +45,20 @@ export const AboutModal: React.FC<AboutModalProps> = ({
           <X className="w-5 h-5" />
         </button>
 
+        {/* Official 3DWorld Brand Header Lockup */}
+        <div className="relative z-10 inline-flex items-center gap-2.5 px-3 py-1 rounded-full bg-white/80 border border-teal-200/80 shadow-xs mb-4">
+          <img
+            src="/assets/branding/3dworld-logo-nav.png"
+            alt="3DWorld"
+            width={240}
+            height={160}
+            className="h-7 w-auto object-contain shrink-0"
+          />
+          <span className="text-[11px] font-display font-bold tracking-wide text-slate-800">
+            3DWorld <span className="text-teal-600 font-normal">• Explore • Play • Live</span>
+          </span>
+        </div>
+
         {/* 1. Circular Creator Portrait with Turquoise Gradient Border */}
         <div className="relative mx-auto mb-4 w-28 h-28 sm:w-32 sm:h-32 rounded-full p-[3px] bg-gradient-to-tr from-[#14b8a6] via-[#2dd4bf] to-[#10b981] shadow-lg shadow-teal-600/20">
           <div className="w-full h-full rounded-full overflow-hidden bg-slate-900 ring-2 ring-white">

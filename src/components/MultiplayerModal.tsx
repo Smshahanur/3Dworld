@@ -203,16 +203,20 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
     >
       <div className="relative w-full max-w-lg bg-[#0a0f1d] border border-cyan-500/30 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-cyan-500/20 bg-gradient-to-r from-cyan-950/40 via-slate-900 to-indigo-950/40 flex items-center justify-between shrink-0">
+        <div className="px-5 py-4 border-b border-cyan-500/20 bg-gradient-to-r from-cyan-950/40 via-[#08142b] to-blue-950/40 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300 shadow-inner">
-              <Users className="w-5 h-5 animate-pulse" />
-            </div>
+            <img
+              src="/assets/branding/3dworld-logo-icon.png"
+              alt="3DWorld"
+              width={40}
+              height={40}
+              className="w-10 h-10 rounded-xl bg-[#08142b]/90 border border-cyan-400/35 p-0.5 object-contain shrink-0 shadow-inner"
+            />
             <div>
               <h2 id="mp-modal-title" className="text-base font-bold text-white tracking-wide">
                 Enter Multiplayer World
               </h2>
-              <p className="text-xs text-cyan-300/80">3DWorld — Virtual Universe</p>
+              <p className="text-xs text-cyan-300/90">3DWorld — Explore • Play • Live</p>
             </div>
           </div>
           <button

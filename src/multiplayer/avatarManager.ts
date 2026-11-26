@@ -340,11 +340,23 @@ export class AvatarManager {
         ? (EYE_COLORS as Record<string, number>)[eyeColorKey]
         : EYE_COLORS.brown;
 
-    // Build GLB/FBX-backed articulated humanoid rig (strictly required for male player & compatible male avatars)
+    const tagAvatarUserData = () => {
+      root.traverse((child) => {
+        child.userData = {
+          ...child.userData,
+          isAvatar: true,
+          isLocal,
+          playerName: name,
+          colorHex,
+        };
+      });
+    };
+
+    // Build GLB/FBX-backed articulated humanoid rig; keeps safe fallback if loading fails and removes it once GLB loads
     const rig = createHumanoidCharacter({
       gender,
       roleKey: gender === 'female' ? 'player_female' : 'player_male',
-      strictAssetRequired: gender === 'male' && typeof window !== 'undefined',
+      strictAssetRequired: false,
       hairStyle,
       outfitType,
       primaryColor: colorHex,
@@ -355,6 +367,7 @@ export class AvatarManager {
       pantsColor: 0x1e293b,
       shoesColor: 0x0f172a,
       castShadow: !this.isSoftwareGl,
+      onAssetStateChange: tagAvatarUserData,
     });
 
     root.add(rig.root);
@@ -378,15 +391,8 @@ export class AvatarManager {
     nameSprite.position.set(0, 1.95, 0);
     root.add(nameSprite);
 
-    // User data for raycasting
-    root.traverse((child) => {
-      child.userData = {
-        isAvatar: true,
-        isLocal,
-        playerName: name,
-        colorHex,
-      };
-    });
+    // User data for raycasting (re-run on async GLB swap via onAssetStateChange)
+    tagAvatarUserData();
 
     return { group: root, rig, nameSprite };
   }
@@ -1062,8 +1068,12 @@ export class AvatarManager {
     for (const hit of intersects) {
       if (hit.object.userData?.isAvatar && !hit.object.userData.isLocal) {
         for (const entry of this.remoteAvatars.values()) {
-          if (entry.group.children.includes(hit.object) || entry.group === hit.object.parent) {
-            return entry.data;
+          let cursor: THREE.Object3D | null = hit.object;
+          while (cursor) {
+            if (cursor === entry.group) {
+              return entry.data;
+            }
+            cursor = cursor.parent;
           }
         }
       }

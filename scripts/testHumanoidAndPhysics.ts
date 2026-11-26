@@ -16,6 +16,43 @@ import {
   AVATAR_EYE_COLORS,
 } from '../src/multiplayer/types';
 import { AvatarManager } from '../src/multiplayer/avatarManager';
+import { createMaterialLibrary } from '../src/world/materials';
+
+if (typeof document === 'undefined') {
+  (global as any).document = {
+    createElement: () => ({
+      getContext: () => ({
+        fillStyle: '',
+        strokeStyle: '',
+        lineWidth: 1,
+        font: '',
+        textAlign: '',
+        textBaseline: '',
+        fillRect: () => {},
+        strokeRect: () => {},
+        clearRect: () => {},
+        beginPath: () => {},
+        closePath: () => {},
+        arc: () => {},
+        quadraticCurveTo: () => {},
+        roundRect: () => {},
+        fill: () => {},
+        stroke: () => {},
+        moveTo: () => {},
+        lineTo: () => {},
+        measureText: () => ({ width: 40 }),
+        fillText: () => {},
+        createRadialGradient: () => ({ addColorStop: () => {} }),
+        createLinearGradient: () => ({ addColorStop: () => {} }),
+        createImageData: (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4) }),
+        getImageData: (_x: number, _y: number, w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4) }),
+        putImageData: () => {},
+      }),
+      width: 256,
+      height: 256,
+    }),
+  };
+}
 
 async function runHumanoidAndPhysicsAudit() {
   console.log('=== RUNNING REALISTIC HUMANOID, GLB ASSET PIPELINE & MOVEMENT PHYSICS AUDIT ===');
@@ -74,16 +111,15 @@ async function runHumanoidAndPhysicsAudit() {
     }
   }
 
-  const strictMaleRig = createHumanoidCharacter({
+  const safeFallbackMaleRig = createHumanoidCharacter({
     gender: 'male',
     roleKey: 'player_male',
-    strictAssetRequired: true,
     castShadow: false,
   });
-  if (strictMaleRig.root.children.some((c) => c.visible) && assetStatus.availableCount === 0) {
-    errors.push('strictAssetRequired male rig rendered visible fallback geometry despite missing Athletic_man.glb');
+  if (!safeFallbackMaleRig.root.children.some((c) => c.visible) && assetStatus.availableCount === 0) {
+    errors.push('Safe fallback male rig should remain visible when Athletic_man.glb is missing');
   }
-  strictMaleRig.dispose();
+  safeFallbackMaleRig.dispose();
 
   // 2. Test Anatomical Structure & Proportions for Male
   console.log('Checking Male Humanoid Proportions & Anatomy...');
@@ -225,6 +261,58 @@ async function runHumanoidAndPhysicsAudit() {
 
   maleRig.dispose();
   femaleRig.dispose();
+
+  // 8. End-to-End AvatarManager Player Controller Simulation (Walk, Run, Turn, Jump)
+  console.log('Simulating AvatarManager Player Controller (Walk, Run, Turn, Jump)...');
+  const testScene = new THREE.Scene();
+  const testCam = new THREE.PerspectiveCamera(60, 16 / 9, 0.1, 500);
+  const testMaterials = createMaterialLibrary(true);
+  const avatarMgr = new AvatarManager(testScene, testCam, testMaterials, true);
+  avatarMgr.spawnLocalAvatar('TestPlayer', 'cyan', 'casual', [0, 0.08, 12], { gender: 'male' });
+
+  const startPos = avatarMgr.getLocalAvatarPosition();
+  if (!startPos) {
+    errors.push('AvatarManager failed to spawn local male avatar');
+  } else {
+    // Walk forward
+    avatarMgr.setTouchJoystickInput(0.5, 0);
+    for (let i = 0; i < 20; i++) avatarMgr.update(0.03);
+    const afterWalk = avatarMgr.getLocalAvatarPosition()!;
+    const walkDist = Math.hypot(afterWalk.x - startPos.x, afterWalk.z - startPos.z);
+    if (walkDist < 0.25) {
+      errors.push(`Avatar walk displacement too small: ${walkDist.toFixed(3)}m`);
+    }
+
+    // Run & turn diagonally
+    avatarMgr.setTouchJoystickInput(0.85, 0.85);
+    for (let i = 0; i < 20; i++) avatarMgr.update(0.03);
+    const afterTurnRun = avatarMgr.getLocalAvatarPosition()!;
+    if (Math.abs(afterTurnRun.rotation - afterWalk.rotation) < 0.05) {
+      errors.push('Avatar did not turn smoothly toward diagonal run direction');
+    }
+
+    // Jump & Gravity
+    avatarMgr.setTouchJoystickInput(0, 0);
+    avatarMgr.triggerJump();
+    let maxY = afterTurnRun.y;
+    for (let i = 0; i < 35; i++) {
+      avatarMgr.update(0.03);
+      const cur = avatarMgr.getLocalAvatarPosition()!;
+      if (cur.y > maxY) maxY = cur.y;
+    }
+    const landed = avatarMgr.getLocalAvatarPosition()!;
+    if (maxY <= afterTurnRun.y + 0.35) {
+      errors.push(`Avatar jump apex too low: ${maxY.toFixed(3)}m`);
+    }
+    if (Math.abs(landed.y - 0.08) > 0.05) {
+      errors.push(`Avatar did not land cleanly on groundY (0.08m), landed at ${landed.y.toFixed(3)}m`);
+    }
+
+    console.log(
+      `- Walk dist=${walkDist.toFixed(2)}m | Turn delta=${Math.abs(afterTurnRun.rotation - afterWalk.rotation).toFixed(2)}rad | Jump apex=${maxY.toFixed(2)}m | Landed Y=${landed.y.toFixed(2)}m`
+    );
+  }
+  avatarMgr.dispose();
 
   console.log('--------------------------------------------------');
   if (errors.length > 0) {

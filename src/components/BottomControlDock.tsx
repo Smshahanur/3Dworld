@@ -15,8 +15,6 @@ import {
   Eye,
   Play,
   Pause,
-  Zap,
-  ZapOff,
   Search,
   Clock,
   Car,
@@ -24,10 +22,10 @@ import {
   Sliders,
   RefreshCw,
   Sparkles,
-  Hammer,
   CloudRain,
   Snowflake,
   CloudFog,
+  Map,
 } from 'lucide-react';
 import { LightingMode, LOCATIONS, LocationData, ViewMode, GraphicsQuality, SimulationSpeed, WeatherMode } from '../types';
 
@@ -46,6 +44,8 @@ interface BottomControlDockProps {
   soundEnabled: boolean;
   onToggleSound: () => void;
   onOpenDiscover: () => void;
+  isMinimapOpen?: boolean;
+  onToggleMinimap?: () => void;
   viewMode?: ViewMode;
   onToggleViewMode?: () => void;
   isBuildMode?: boolean;
@@ -90,6 +90,8 @@ export const BottomControlDock: React.FC<BottomControlDockProps> = ({
   soundEnabled,
   onToggleSound,
   onOpenDiscover,
+  isMinimapOpen = false,
+  onToggleMinimap,
   viewMode = 'aerial',
   onToggleViewMode,
   isBuildMode = false,
@@ -154,7 +156,7 @@ export const BottomControlDock: React.FC<BottomControlDockProps> = ({
 
       {/* Main Dock Container */}
       {!isCollapsed && (
-        <div className="pointer-events-auto bg-[#070b16]/95 border border-white/12 rounded-2xl p-2 sm:p-3 shadow-2xl backdrop-blur-md transition-all">
+        <div className="pointer-events-auto bg-[#071022]/92 border border-white/10 rounded-2xl p-2 sm:p-2.5 shadow-2xl backdrop-blur-md transition-all">
           {/* Main Controls Row */}
           <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-1.5 sm:gap-2">
             {/* Primary Action Buttons */}
@@ -162,7 +164,7 @@ export const BottomControlDock: React.FC<BottomControlDockProps> = ({
               {/* Reset Camera View */}
               <button
                 onClick={onResetView}
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 active:bg-cyan-500/20 border border-white/10 hover:border-cyan-400/40 text-slate-200 text-xs transition-all cursor-pointer min-h-[34px]"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 active:bg-cyan-500/20 border border-white/10 hover:border-cyan-400/40 text-slate-200 text-xs transition-all cursor-pointer min-h-[40px] sm:min-h-[36px]"
                 title="Reset Camera to Home Overview"
               >
                 <RotateCcw className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
@@ -173,7 +175,7 @@ export const BottomControlDock: React.FC<BottomControlDockProps> = ({
               {onToggleViewMode && (
                 <button
                   onClick={onToggleViewMode}
-                  className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs transition-all cursor-pointer min-h-[34px] ${
+                  className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs transition-all cursor-pointer min-h-[40px] sm:min-h-[36px] ${
                     viewMode === 'street'
                       ? 'bg-amber-950/70 border-amber-400 text-amber-300 shadow-sm shadow-amber-500/20'
                       : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-300'
@@ -198,7 +200,7 @@ export const BottomControlDock: React.FC<BottomControlDockProps> = ({
               {onToggleDrive && (
                 <button
                   onClick={onToggleDrive}
-                  className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs transition-all cursor-pointer min-h-[34px] ${
+                  className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs transition-all cursor-pointer min-h-[40px] sm:min-h-[36px] ${
                     isDriving
                       ? 'bg-cyan-500/30 border-cyan-400 text-cyan-200 shadow-sm shadow-cyan-500/30 font-semibold'
                       : 'bg-white/5 hover:bg-white/10 border-white/10 text-cyan-300'
@@ -210,40 +212,27 @@ export const BottomControlDock: React.FC<BottomControlDockProps> = ({
                 </button>
               )}
 
-              {/* Village Builder Mode Button */}
-              {onToggleBuildMode && (
+              {/* Compact World Minimap Toggle */}
+              {onToggleMinimap && (
                 <button
-                  onClick={onToggleBuildMode}
-                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs transition-all cursor-pointer min-h-[34px] bg-amber-950/40 hover:bg-amber-950/70 border-amber-400/40 text-amber-300 hover:text-amber-200"
-                  title="Open Village Builder & Construction System"
-                >
-                  <Hammer className="w-3.5 h-3.5 shrink-0 text-amber-400" />
-                  <span className="font-medium text-[11px] sm:text-xs">Build</span>
-                </button>
-              )}
-
-              {/* Multiplayer Virtual World Button */}
-              {onToggleMultiplayer && (
-                <button
-                  onClick={onToggleMultiplayer}
-                  className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs transition-all cursor-pointer min-h-[34px] ${
-                    isMultiplayerActive
-                      ? 'bg-emerald-950/70 border-emerald-400 text-emerald-300 shadow-sm shadow-emerald-500/20'
-                      : 'bg-emerald-950/30 hover:bg-emerald-950/60 border-emerald-500/30 text-emerald-300 hover:text-emerald-200'
+                  type="button"
+                  onClick={onToggleMinimap}
+                  className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs transition-all cursor-pointer min-h-[40px] sm:min-h-[36px] ${
+                    isMinimapOpen
+                      ? 'bg-cyan-500/20 border-cyan-400/50 text-cyan-200 font-semibold'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-200'
                   }`}
-                  title={isMultiplayerActive ? 'Multiplayer World Active' : 'Enter Multiplayer Virtual World'}
+                  title={isMinimapOpen ? 'Hide World Minimap' : 'Show World Minimap'}
                 >
-                  <Users className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
-                  <span className="font-medium text-[11px] sm:text-xs">
-                    {isMultiplayerActive ? `Online (${multiplayerPlayerCount})` : 'Online'}
-                  </span>
+                  <Map className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                  <span className="font-medium text-[11px] sm:text-xs">Map</span>
                 </button>
               )}
 
               {/* Auto Orbit */}
               <button
                 onClick={onToggleAutoRotate}
-                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs transition-all cursor-pointer min-h-[34px] ${
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs transition-all cursor-pointer min-h-[40px] sm:min-h-[36px] ${
                   autoRotate
                     ? 'bg-cyan-950/70 border-cyan-400 text-cyan-300 shadow-sm shadow-cyan-500/20'
                     : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-300'
@@ -291,7 +280,7 @@ export const BottomControlDock: React.FC<BottomControlDockProps> = ({
               {/* Soundscape Audio */}
               <button
                 onClick={onToggleSound}
-                className={`p-2 rounded-xl border transition-all cursor-pointer min-h-[34px] min-w-[34px] flex items-center justify-center ${
+                className={`p-2 rounded-xl border transition-all cursor-pointer min-h-[40px] sm:min-h-[36px] min-w-[34px] flex items-center justify-center ${
                   soundEnabled
                     ? 'bg-cyan-950/70 border-cyan-400 text-cyan-300 shadow-sm shadow-cyan-500/20'
                     : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-400 hover:text-slate-200'
@@ -302,35 +291,15 @@ export const BottomControlDock: React.FC<BottomControlDockProps> = ({
                 {soundEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
               </button>
 
-              {/* Search & Discover Drawer Opener */}
+              {/* Discover Locations Opener */}
               <button
                 onClick={onOpenDiscover}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-cyan-600/30 hover:bg-cyan-600/50 active:bg-cyan-600/70 border border-cyan-500/40 text-cyan-200 text-xs transition-all cursor-pointer min-h-[34px]"
-                title="Search and Discover all Districts, Landmarks, and Buildings"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/35 text-cyan-200 text-xs transition-all cursor-pointer min-h-[40px] sm:min-h-[36px]"
+                title="Discover Locations across 3DWorld"
               >
                 <Search className="w-3.5 h-3.5 shrink-0" />
-                <span className="text-[11px] font-medium hidden xs:inline sm:inline">Search</span>
+                <span className="text-[11px] font-medium hidden xs:inline sm:inline">Locations</span>
               </button>
-            </div>
-
-            {/* Center: Desktop Quick Landmark Jumper Chips */}
-            <div className="hidden lg:flex items-center gap-1.5 overflow-x-auto py-0.5 max-w-sm">
-              {LOCATIONS.map((loc) => {
-                const isSelected = activeLocationId === loc.id;
-                return (
-                  <button
-                    key={loc.id}
-                    onClick={() => onSelectLocation(loc)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-mono transition-all cursor-pointer whitespace-nowrap ${
-                      isSelected
-                        ? 'bg-cyan-500/25 text-cyan-300 border border-cyan-400/60 shadow-sm'
-                        : 'bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5 hover:border-white/15'
-                    }`}
-                  >
-                    {loc.name}
-                  </button>
-                );
-              })}
             </div>
 
             {/* Right: Lighting Atmosphere Controls & Time Scrubber Badge */}

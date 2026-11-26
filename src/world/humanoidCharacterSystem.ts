@@ -58,6 +58,7 @@ export interface HumanoidOptions {
   castShadow?: boolean;
   roleKey?: CharacterModelRole;
   strictAssetRequired?: boolean;
+  onAssetStateChange?: () => void;
 }
 
 export type HumanoidGesture =
@@ -990,8 +991,7 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
   // ---------------------------------------------------------------------------
   const resolvedRole: CharacterModelRole =
     options.roleKey || (isFemale ? 'player_female' : 'player_male');
-  const strictAssetRequired =
-    options.strictAssetRequired ?? (resolvedRole === 'player_male' && typeof window !== 'undefined');
+  const strictAssetRequired = options.strictAssetRequired ?? false;
 
   let glbInstance: GLBCharacterInstance | null = null;
   let assetLoadState: 'loading' | 'loaded' | 'error' | 'fallback' =
@@ -999,10 +999,13 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
   let lastLoadError: CharacterLoadError | null = null;
   let isDisposed = false;
   let fallbackRemoved = false;
+  let isAttaching = false;
+  let pendingReattach = false;
+  let attachedUrl: string | null = null;
+  let attachedVersion = -1;
   const targetHeight = isChild ? 1.18 : options.heightScale ? 1.75 * options.heightScale : undefined;
 
   if (strictAssetRequired) {
-    // Do not display the old procedural male mannequin silently while loading or if asset fails
     fallbackGroup.visible = false;
   }
 
@@ -1021,49 +1024,74 @@ export function createHumanoidCharacter(options: HumanoidOptions = {}): Humanoid
 
   const tryAttachGLB = async (): Promise<void> => {
     if (isDisposed) return;
-    if (strictAssetRequired) {
-      assetLoadState = 'loading';
+    if (isAttaching) {
+      pendingReattach = true;
+      return;
     }
-
-    const instance = await characterAssetManager.createInstance(resolvedRole, {
-      primaryColor: options.primaryColor,
-      hairColor: options.hairColor,
-      skinTone: options.skinTone,
-      targetHeight,
-      castShadow,
-      preserveOriginalMaterials: resolvedRole === 'player_male',
-    });
-
-    if (isDisposed) {
-      instance?.dispose();
+    const candidateUrl = characterAssetManager.resolveUrlForRole(resolvedRole)?.url ?? null;
+    const candidateVersion = characterAssetManager.getRoleVersion(resolvedRole);
+    if (attachedUrl && candidateUrl === attachedUrl && attachedVersion === candidateVersion) {
       return;
     }
 
-    if (instance) {
-      if (glbInstance) {
-        root.remove(glbInstance.root);
-        glbInstance.dispose();
-      }
-      glbInstance = instance;
-      assetLoadState = 'loaded';
-      lastLoadError = null;
-      root.add(instance.root);
-      // Remove the old procedural character only after the new model loads successfully
-      removeAndDisposeFallback();
-    } else {
-      if (glbInstance) {
-        root.remove(glbInstance.root);
-        glbInstance.dispose();
-        glbInstance = null;
-      }
-      lastLoadError = characterAssetManager.getErrorForRole(resolvedRole);
+    isAttaching = true;
+    pendingReattach = false;
+    try {
       if (strictAssetRequired) {
-        assetLoadState = 'error';
-        // Never fall back silently to the old mannequin if the supplied model fails
+        assetLoadState = 'loading';
+      }
+
+      const instance = await characterAssetManager.createInstance(resolvedRole, {
+        primaryColor: options.primaryColor,
+        hairColor: options.hairColor,
+        skinTone: options.skinTone,
+        targetHeight,
+        castShadow,
+        preserveOriginalMaterials: resolvedRole === 'player_male',
+      });
+
+      if (isDisposed) {
+        instance?.dispose();
+        return;
+      }
+
+      if (instance) {
+        if (glbInstance) {
+          root.remove(glbInstance.root);
+          glbInstance.dispose();
+        }
+        glbInstance = instance;
+        attachedUrl = instance.inspection.url;
+        attachedVersion = characterAssetManager.getRoleVersion(resolvedRole);
+        assetLoadState = 'loaded';
+        lastLoadError = null;
+        root.add(instance.root);
+        // Remove the old procedural character only after the new model loads successfully
         removeAndDisposeFallback();
       } else {
-        assetLoadState = 'fallback';
-        fallbackGroup.visible = true;
+        if (glbInstance) {
+          root.remove(glbInstance.root);
+          glbInstance.dispose();
+          glbInstance = null;
+        }
+        attachedUrl = null;
+        attachedVersion = -1;
+        lastLoadError = characterAssetManager.getErrorForRole(resolvedRole);
+        if (strictAssetRequired) {
+          assetLoadState = 'error';
+          // Never fall back silently to the old mannequin if the supplied model fails
+          removeAndDisposeFallback();
+        } else {
+          assetLoadState = 'fallback';
+          fallbackGroup.visible = true;
+        }
+      }
+      options.onAssetStateChange?.();
+    } finally {
+      isAttaching = false;
+      if (pendingReattach && !isDisposed) {
+        pendingReattach = false;
+        void tryAttachGLB();
       }
     }
   };

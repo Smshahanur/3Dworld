@@ -9,12 +9,16 @@ interface WorldMinimapProps {
   } | undefined;
   onFastTravel?: (district: 'rural' | 'modern' | 'capital') => void;
   cinemaMode?: boolean;
+  onClose?: () => void;
+  offsetTop?: boolean;
 }
 
 export const WorldMinimap: React.FC<WorldMinimapProps> = ({
   getNavPositions,
   onFastTravel,
   cinemaMode = false,
+  onClose,
+  offsetTop = false,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [positions, setPositions] = useState<{
@@ -78,28 +82,37 @@ export const WorldMinimap: React.FC<WorldMinimapProps> = ({
 
   return (
     <div
-      className={`fixed top-16 right-4 z-40 transition-all duration-300 pointer-events-auto select-none font-sans ${
-        isExpanded ? 'w-[376px]' : 'w-[206px]'
+      className={`fixed ${offsetTop ? 'top-32' : 'top-16'} right-3 sm:right-6 z-40 transition-all duration-300 pointer-events-auto select-none font-sans max-w-[calc(100vw-1.5rem)] ${
+        isExpanded ? 'w-[376px]' : 'w-[220px]'
       }`}
     >
-      <div className="bg-slate-900/85 backdrop-blur-md border border-cyan-500/30 rounded-xl shadow-2xl p-2 text-white overflow-hidden">
+      <div className="bg-[#071022]/92 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl p-2.5 text-white overflow-hidden">
         {/* Minimap Top Header */}
-        <div className="flex items-center justify-between px-1 pb-1.5 border-b border-slate-700/60 mb-1.5">
-          <div className="flex items-center space-x-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[10px] font-bold tracking-wider uppercase text-cyan-300">
-              {positions.isDriving ? 'GPS Navigation' : 'World Minimap'}
-            </span>
-          </div>
+        <div className="flex items-center justify-between px-1 pb-1.5 border-b border-white/10 mb-1.5">
+          <span className="text-[11px] font-semibold tracking-wide text-cyan-300">
+            {positions.isDriving ? 'GPS Navigation' : 'World Minimap'}
+          </span>
 
-          <div className="flex items-center space-x-1">
+          <div className="flex items-center gap-1">
             <button
+              type="button"
               onClick={() => setIsExpanded(!isExpanded)}
-              title={isExpanded ? 'Collapse Minimap' : 'Expand Minimap'}
-              className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+              title={isExpanded ? 'Compact Minimap' : 'Expand Minimap'}
+              className="text-[10px] px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-slate-200 transition-colors cursor-pointer"
             >
-              {isExpanded ? '▾ Compact' : '▴ Expand'}
+              {isExpanded ? 'Compact' : 'Expand'}
             </button>
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Hide Minimap"
+                title="Hide Minimap"
+                className="text-[11px] px-1.5 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-slate-300 hover:text-white transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            )}
           </div>
         </div>
 

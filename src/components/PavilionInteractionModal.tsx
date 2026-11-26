@@ -105,13 +105,20 @@ export const PavilionInteractionModal: React.FC<PavilionInteractionModalProps> =
         <div className="relative z-10 flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-2">
+              <img
+                src="/assets/branding/3dworld-logo-icon.png"
+                alt="3DWorld"
+                width={22}
+                height={22}
+                className="w-5 h-5 object-contain rounded shrink-0"
+              />
               <span
                 className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-wider uppercase border ${theme.bg} ${theme.text} ${theme.border}`}
               >
                 {point.category}
               </span>
-              <span className="text-xs text-teal-400/60 font-mono">
-                Creator Studio Interior
+              <span className="text-xs text-cyan-300/75 font-mono">
+                3DWorld Creator Studio
               </span>
             </div>
             <h2

@@ -2,12 +2,9 @@ import React, { useState, useMemo } from 'react';
 import {
   X,
   Search,
-  Sparkles,
-  MapPin,
   ChevronRight,
-  Building2,
   Compass,
-  Check,
+  Building2,
 } from 'lucide-react';
 import { LOCATIONS, LocationData, BUILDINGS, BuildingInfo } from '../types';
 
@@ -20,7 +17,83 @@ interface LocationDrawerProps {
   onSelectBuilding: (building: BuildingInfo) => void;
 }
 
-type FilterCategory = 'all' | 'districts' | 'civic' | 'commercial' | 'residential' | 'parks';
+type DestinationCategoryId =
+  | 'all'
+  | 'rural-village'
+  | 'modern-village'
+  | 'capital-town'
+  | 'central-park'
+  | 'botanical-garden'
+  | 'lake-district'
+  | 'residential'
+  | 'creator-pavilion';
+
+interface CategoryGroup {
+  id: Exclude<DestinationCategoryId, 'all'>;
+  label: string;
+  subtitle: string;
+  locationIds: LocationData['id'][];
+  buildingDistrictIds: BuildingInfo['districtId'][];
+}
+
+const DESTINATION_CATEGORIES: CategoryGroup[] = [
+  {
+    id: 'rural-village',
+    label: 'Rural Village',
+    subtitle: 'Traditional pastoral farmland, cottages & village life',
+    locationIds: ['rural-village'],
+    buildingDistrictIds: ['rural-village'],
+  },
+  {
+    id: 'modern-village',
+    label: 'Modern Village',
+    subtitle: 'Town Center civic plaza, cafes, shops & avenues',
+    locationIds: ['town-center'],
+    buildingDistrictIds: ['town-center'],
+  },
+  {
+    id: 'capital-town',
+    label: 'Capital Town',
+    subtitle: 'Metropolitan skyscrapers, Civic Plaza & transit hub',
+    locationIds: ['capital-town', 'capital-plaza'],
+    buildingDistrictIds: ['capital-town', 'capital-plaza'],
+  },
+  {
+    id: 'central-park',
+    label: 'Central Park',
+    subtitle: 'Grand tiered fountain, gazebo & recreation lawns',
+    locationIds: ['central-park'],
+    buildingDistrictIds: ['central-park'],
+  },
+  {
+    id: 'botanical-garden',
+    label: 'Botanical Garden',
+    subtitle: 'Glass conservatory greenhouse & floral parterres',
+    locationIds: ['botanical-garden'],
+    buildingDistrictIds: ['botanical-garden'],
+  },
+  {
+    id: 'lake-district',
+    label: 'Lake District',
+    subtitle: 'Freshwater shoreline, marina boardwalk & footbridges',
+    locationIds: ['lake-district'],
+    buildingDistrictIds: ['lake-district'],
+  },
+  {
+    id: 'residential',
+    label: 'Residential District',
+    subtitle: 'Contemporary cedar & slate villas and townhouses',
+    locationIds: ['residential'],
+    buildingDistrictIds: ['residential'],
+  },
+  {
+    id: 'creator-pavilion',
+    label: 'Creator Pavilion',
+    subtitle: 'Interactive 3D Studio of Shahanur Mollah',
+    locationIds: ['creator-pavilion'],
+    buildingDistrictIds: ['creator-pavilion'],
+  },
+];
 
 export const LocationDrawer: React.FC<LocationDrawerProps> = ({
   isOpen,
@@ -31,282 +104,252 @@ export const LocationDrawer: React.FC<LocationDrawerProps> = ({
   onSelectBuilding,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState<FilterCategory>('all');
+  const [activeCategory, setActiveCategory] = useState<DestinationCategoryId>('all');
 
-  // Filtered districts
-  const filteredDistricts = useMemo(() => {
-    if (activeCategory !== 'all' && activeCategory !== 'districts') return [];
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return LOCATIONS;
-    return LOCATIONS.filter(
-      (loc) =>
-        loc.name.toLowerCase().includes(q) ||
-        loc.subtitle.toLowerCase().includes(q) ||
-        loc.description.toLowerCase().includes(q) ||
-        loc.tag.toLowerCase().includes(q)
-    );
-  }, [searchQuery, activeCategory]);
-
-  // Filtered buildings
-  const filteredBuildings = useMemo(() => {
-    if (activeCategory === 'districts') return [];
+  const groupedDestinations = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
 
-    return BUILDINGS.filter((b) => {
-      // Category match
-      if (activeCategory === 'civic' && b.category !== 'civic') return false;
-      if (activeCategory === 'commercial' && b.category !== 'commercial') return false;
-      if (activeCategory === 'residential' && b.category !== 'residential') return false;
-      if (activeCategory === 'parks' && b.category !== 'park' && b.category !== 'nature') return false;
+    return DESTINATION_CATEGORIES.filter(
+      (cat) => activeCategory === 'all' || cat.id === activeCategory
+    )
+      .map((cat) => {
+        const locations = LOCATIONS.filter((loc) => {
+          if (!cat.locationIds.includes(loc.id)) return false;
+          if (!q) return true;
+          return (
+            cat.label.toLowerCase().includes(q) ||
+            loc.name.toLowerCase().includes(q) ||
+            loc.subtitle.toLowerCase().includes(q) ||
+            loc.description.toLowerCase().includes(q)
+          );
+        });
 
-      // Text query match
-      if (!q) return true;
-      return (
-        b.name.toLowerCase().includes(q) ||
-        b.type.toLowerCase().includes(q) ||
-        b.district.toLowerCase().includes(q) ||
-        b.description.toLowerCase().includes(q) ||
-        b.features?.some((f) => f.toLowerCase().includes(q))
-      );
-    });
+        const buildings = BUILDINGS.filter((b) => {
+          if (!cat.buildingDistrictIds.includes(b.districtId)) return false;
+          if (!q) return true;
+          return (
+            cat.label.toLowerCase().includes(q) ||
+            b.name.toLowerCase().includes(q) ||
+            b.type.toLowerCase().includes(q) ||
+            b.district.toLowerCase().includes(q) ||
+            b.description.toLowerCase().includes(q)
+          );
+        });
+
+        return {
+          ...cat,
+          locations,
+          buildings,
+        };
+      })
+      .filter((group) => group.locations.length > 0 || group.buildings.length > 0);
   }, [searchQuery, activeCategory]);
 
   if (!isOpen) return null;
 
-  const totalResults = filteredDistricts.length + filteredBuildings.length;
+  const totalMatches = groupedDestinations.reduce(
+    (sum, g) => sum + g.locations.length + g.buildings.length,
+    0
+  );
 
   return (
     <div className="fixed inset-0 z-50 pointer-events-none flex justify-end animate-in fade-in duration-200">
-      {/* Backdrop (clickable to dismiss) */}
+      {/* Backdrop */}
       <div
         onClick={onClose}
-        className="absolute inset-0 bg-black/50 pointer-events-auto transition-opacity"
+        aria-hidden="true"
+        className="absolute inset-0 bg-black/55 backdrop-blur-[2px] pointer-events-auto transition-opacity"
       />
 
-      {/* Slide-out Panel */}
+      {/* Slide-out Discover Locations Panel */}
       <aside
         id="landmarks"
+        role="dialog"
+        aria-modal="true"
         aria-labelledby="landmarks-title"
-        className="relative pointer-events-auto w-full max-w-lg h-full bg-[#080d19]/96 border-l border-white/10 shadow-2xl flex flex-col p-4 sm:p-6 overflow-hidden"
+        className="relative pointer-events-auto w-full max-w-lg h-full bg-[#071022]/98 border-l border-white/10 shadow-2xl flex flex-col p-4 sm:p-6 overflow-hidden"
       >
-        {/* Drawer Header */}
-        <div className="flex items-center justify-between pb-3.5 border-b border-white/10">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 pb-4 border-b border-white/10">
           <div>
             <div className="flex items-center gap-2">
-              <Compass className="w-5 h-5 text-cyan-400" />
+              <Compass className="w-5 h-5 text-cyan-400 shrink-0" />
               <h2 id="landmarks-title" className="font-display font-bold text-lg text-white">
-                Explore Destinations & Buildings
+                Discover Locations
               </h2>
             </div>
             <p className="text-xs text-slate-400 mt-1">
-              Search and filter across Rural Village, Modern Village, Capital Town, and public amenities.
+              Choose any district or landmark to travel directly across 3DWorld.
             </p>
           </div>
 
           <button
+            type="button"
             onClick={onClose}
-            aria-label="Close Destinations Drawer"
-            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            aria-label="Close Discover Locations"
+            className="w-9 h-9 rounded-xl bg-white/[0.04] hover:bg-white/[0.1] border border-white/10 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Search Input Bar */}
-        <div className="mt-3.5 relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        {/* Search Input */}
+        <div className="mt-4 relative">
+          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search school, clinic, café, park, villa..."
-            className="w-full pl-9 pr-8 py-2 rounded-xl bg-white/5 border border-white/10 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400 transition-colors"
+            placeholder="Search districts, parks, cafes, villas..."
+            className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-white/[0.04] border border-white/10 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400/60 transition-colors"
           />
           {searchQuery && (
             <button
+              type="button"
               onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-0.5"
+              aria-label="Clear search"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
 
-        {/* Filter Category Chips */}
-        <div className="flex items-center gap-1.5 overflow-x-auto py-2.5 no-scrollbar">
-          {[
-            { id: 'all', label: 'All Places' },
-            { id: 'districts', label: 'Districts' },
-            { id: 'civic', label: 'Civic & Medical' },
-            { id: 'commercial', label: 'Shops & Cafés' },
-            { id: 'residential', label: 'Residential' },
-            { id: 'parks', label: 'Parks & Nature' },
-          ].map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setActiveCategory(cat.id as FilterCategory)}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-mono whitespace-nowrap transition-colors cursor-pointer ${
-                activeCategory === cat.id
-                  ? 'bg-cyan-500/25 text-cyan-300 border border-cyan-400/50'
-                  : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200 border border-white/5'
-              }`}
-            >
-              {cat.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Results Counter */}
-        <div className="text-[10px] font-mono text-slate-400 pb-2 flex items-center justify-between">
-          <span>{totalResults} Destinations Found</span>
-          {searchQuery && <span className="text-cyan-400">Filtering by "{searchQuery}"</span>}
-        </div>
-
-        {/* Scrollable Destination & Building Cards */}
-        <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-          {/* 1. Districts Section */}
-          {filteredDistricts.length > 0 && (
-            <div>
-              <div className="text-[10px] font-mono uppercase tracking-wider text-cyan-400 mb-2 flex items-center gap-1.5">
-                <Compass className="w-3 h-3 text-cyan-400" />
-                <span>Major Village Districts</span>
-              </div>
-              <div className="space-y-2">
-                {filteredDistricts.map((loc) => {
-                  const isActive = activeLocationId === loc.id;
-                  return (
-                    <article
-                      key={loc.id}
-                      onClick={() => {
-                        onSelectLocation(loc);
-                        onClose();
-                      }}
-                      className={`group relative p-3.5 rounded-xl border transition-all cursor-pointer ${
-                        isActive
-                          ? 'bg-cyan-950/50 border-cyan-400 shadow-md shadow-cyan-500/10'
-                          : 'bg-white/[0.03] border-white/10 hover:border-cyan-500/40 hover:bg-white/[0.06]'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="w-2.5 h-2.5 rounded-full shrink-0"
-                            style={{ backgroundColor: loc.ambientColor }}
-                          />
-                          <h3 className="font-display font-semibold text-sm text-white group-hover:text-cyan-300 transition-colors">
-                            {loc.name}
-                          </h3>
-                        </div>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/5 text-slate-300">
-                          {loc.tag}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-300 line-clamp-2 leading-relaxed mb-2">
-                        {loc.description}
-                      </p>
-                      <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-white/5">
-                        <span className="text-slate-400 font-mono text-[10px]">{loc.altitude}</span>
-                        <div className="flex items-center gap-1 font-semibold text-cyan-400 group-hover:translate-x-0.5 transition-transform">
-                          <span>Navigate District</span>
-                          <ChevronRight className="w-3 h-3" />
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* 2. Interactive Buildings Section */}
-          {filteredBuildings.length > 0 && (
-            <div className="pt-2">
-              <div className="text-[10px] font-mono uppercase tracking-wider text-cyan-400 mb-2 flex items-center gap-1.5">
-                <Building2 className="w-3 h-3 text-cyan-400" />
-                <span>Interactive Buildings & Public Amenities</span>
-              </div>
-              <div className="space-y-2">
-                {filteredBuildings.map((b) => {
-                  const isActive = activeBuildingId === b.id;
-                  return (
-                    <article
-                      key={b.id}
-                      onClick={() => {
-                        onSelectBuilding(b);
-                        onClose();
-                      }}
-                      className={`group relative p-3.5 rounded-xl border transition-all cursor-pointer ${
-                        isActive
-                          ? 'bg-cyan-950/50 border-cyan-400 shadow-md shadow-cyan-500/10'
-                          : 'bg-white/[0.03] border-white/10 hover:border-cyan-500/40 hover:bg-white/[0.06]'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <div>
-                          <div className="text-[10px] font-mono text-cyan-400 uppercase tracking-wide">
-                            {b.type}
-                          </div>
-                          <h4 className="font-display font-semibold text-sm text-white group-hover:text-cyan-300 transition-colors">
-                            {b.name}
-                          </h4>
-                        </div>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/5 text-slate-300 shrink-0">
-                          {b.district}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-300 line-clamp-2 leading-relaxed mb-2">
-                        {b.description}
-                      </p>
-                      {/* Features mini pills */}
-                      {b.features && b.features.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-2">
-                          {b.features.slice(0, 2).map((feat, i) => (
-                            <span
-                              key={i}
-                              className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-950/40 text-cyan-300 border border-cyan-500/20"
-                            >
-                              {feat}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-white/5">
-                        <span className="text-slate-400 font-mono text-[10px]">Clickable 3D Landmark</span>
-                        <div className="flex items-center gap-1 font-semibold text-cyan-400 group-hover:translate-x-0.5 transition-transform">
-                          <span>Focus Camera</span>
-                          <ChevronRight className="w-3 h-3" />
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {totalResults === 0 && (
-            <div className="py-12 text-center text-slate-400 text-xs">
-              <Sparkles className="w-8 h-8 text-cyan-400/60 mx-auto mb-2" />
-              <p>No destinations found matching "{searchQuery}"</p>
+        {/* 8 Destination Category Filters */}
+        <div className="flex items-center gap-1.5 overflow-x-auto py-3 no-scrollbar shrink-0">
+          <button
+            type="button"
+            onClick={() => setActiveCategory('all')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer shrink-0 ${
+              activeCategory === 'all'
+                ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-400/50'
+                : 'bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] border border-white/10'
+            }`}
+          >
+            All Categories
+          </button>
+          {DESTINATION_CATEGORIES.map((cat) => {
+            const isSelected = activeCategory === cat.id;
+            return (
               <button
+                key={cat.id}
+                type="button"
+                onClick={() => setActiveCategory(cat.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer shrink-0 ${
+                  isSelected
+                    ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-400/50'
+                    : 'bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] border border-white/10'
+                }`}
+              >
+                {cat.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Scrollable Organized Destinations */}
+        <div className="flex-1 overflow-y-auto space-y-5 pr-1 pb-2">
+          {groupedDestinations.map((group) => (
+            <section key={group.id} className="space-y-2.5">
+              <div className="flex items-baseline justify-between gap-2 pb-1.5 border-b border-white/10">
+                <div>
+                  <h3 className="font-display font-semibold text-sm text-white">
+                    {group.label}
+                  </h3>
+                  <p className="text-[11px] text-slate-400">{group.subtitle}</p>
+                </div>
+                <span className="text-[11px] text-slate-400 tabular-nums shrink-0">
+                  {group.locations.length + group.buildings.length} places
+                </span>
+              </div>
+
+              {/* Primary District / Zone Actions */}
+              {group.locations.map((loc) => {
+                const isActive = activeLocationId === loc.id;
+                return (
+                  <button
+                    key={loc.id}
+                    type="button"
+                    onClick={() => {
+                      onSelectLocation(loc);
+                      onClose();
+                    }}
+                    className={`w-full text-left p-3.5 rounded-xl border transition-colors cursor-pointer group ${
+                      isActive
+                        ? 'bg-cyan-500/15 border-cyan-400/50'
+                        : 'bg-white/[0.03] border-white/10 hover:bg-white/[0.06] hover:border-cyan-400/40'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-display font-semibold text-sm text-white group-hover:text-cyan-300 transition-colors">
+                        {loc.name}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-cyan-300 shrink-0">
+                        <span>Visit</span>
+                        <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 mt-1 line-clamp-2 leading-relaxed">
+                      {loc.description}
+                    </p>
+                  </button>
+                );
+              })}
+
+              {/* Buildings inside this Category */}
+              {group.buildings.length > 0 && (
+                <div className="grid grid-cols-1 gap-1.5">
+                  {group.buildings.map((b) => {
+                    const isSelected = activeBuildingId === b.id;
+                    return (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => {
+                          onSelectBuilding(b);
+                          onClose();
+                        }}
+                        className={`w-full text-left px-3 py-2.5 rounded-xl border transition-colors cursor-pointer flex items-center justify-between gap-3 group ${
+                          isSelected
+                            ? 'bg-cyan-500/15 border-cyan-400/50'
+                            : 'bg-white/[0.02] border-white/[0.07] hover:bg-white/[0.06] hover:border-white/15'
+                        }`}
+                      >
+                        <div className="min-w-0 flex items-center gap-2.5">
+                          <Building2 className="w-3.5 h-3.5 text-amber-300/80 shrink-0" />
+                          <div className="min-w-0">
+                            <div className="text-xs font-semibold text-slate-100 group-hover:text-cyan-300 truncate transition-colors">
+                              {b.name}
+                            </div>
+                            <div className="text-[11px] text-slate-400 truncate">
+                              {b.type}
+                            </div>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-cyan-300 shrink-0" />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          ))}
+
+          {totalMatches === 0 && (
+            <div className="py-12 text-center text-slate-400 text-xs">
+              <p>No destinations found matching &ldquo;{searchQuery}&rdquo;.</p>
+              <button
+                type="button"
                 onClick={() => {
                   setSearchQuery('');
                   setActiveCategory('all');
                 }}
-                className="mt-3 px-3 py-1.5 rounded-lg bg-cyan-600/30 text-cyan-300 text-xs hover:bg-cyan-600/50 cursor-pointer"
+                className="mt-3 px-4 py-2 rounded-xl bg-cyan-500/15 border border-cyan-400/40 text-cyan-200 text-xs font-medium hover:bg-cyan-500/25 cursor-pointer"
               >
-                Clear Search
+                Reset Filters
               </button>
             </div>
           )}
-        </div>
-
-        {/* Footer info */}
-        <div className="pt-3 border-t border-white/10 text-[11px] text-slate-400 flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-            <span>Click any building directly in 3D to open its info card</span>
-          </div>
         </div>
       </aside>
     </div>
